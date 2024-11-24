@@ -1,7 +1,18 @@
 import bppy as bp
 import random
+from typing import *
 
 random.seed(10)
+
+class PlayerEventSet(bp.EventSet):
+    def __init__(self, index):
+        self.index = index
+        super().__init__(lambda event: event.name.startswith(f"p_{self.index}"))
+    def __contains__(self, item):
+        if isinstance(item, bp.BEvent):
+            return item.name.startswith(f"p_{self.index}")
+        else:
+            raise TypeError(f"PlayerOneEventSet: Expected item of type BEvent, got {type(item)}")
 
 def create_and_shuffle_cards():
     all_cards = []
@@ -26,8 +37,21 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
     yield bp.sync(request= bp.BEvent("finished_dealing_cards"))
 
+@bp.thread
+def player_behavior(index, num_of_cards=2):
+    cards = []
+    player_cards_event_set = PlayerEventSet(index)
+    for i in range(num_of_cards):
+        card_event = yield bp.sync(waitFor=player_cards_event_set)
+        cards.append(card_event)
+
+    yield bp.sync(waitFor=bp.BEvent("finished_dealing_cards"))
+    yield bp.sync(request=bp.BEvent(f"player_{index} is ready to play"))
+
 def init_b_program():
-    b_program = bp.BProgram(bthreads=[deal_cards()],
+    b_program = bp.BProgram(bthreads=[ deal_cards(2,2),
+                                                                player_behavior(0,2),
+                                                                player_behavior(1, 2)],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
