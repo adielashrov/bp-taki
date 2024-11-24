@@ -17,7 +17,7 @@ class PlayerEventSet(bp.EventSet):
 def create_and_shuffle_cards():
     all_cards = []
     colors = ["blue", "red"]
-    values = ["1", "3", "4", "5"]
+    values = ["1", "3", "4", "5","6","7","8"]
     for color in colors:
         for value in values:
             card_event_name= "card_" + value + "_" + color
@@ -36,6 +36,9 @@ def deal_cards(num_of_players=2, num_of_cards=2):
             yield bp.sync(request= player_card_event)
 
     yield bp.sync(request= bp.BEvent("finished_dealing_cards"))
+
+    top_card = cards.pop()
+    yield bp.sync(request=bp.BEvent("leading_card", {"name": top_card.name}))
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
