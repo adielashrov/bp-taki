@@ -62,6 +62,7 @@ def init_b_program():
     return b_program
 
 if __name__ == "__main__":
+    # test git commit
     b_program = init_b_program()
     b_program.run()
 
