@@ -2,7 +2,23 @@ import bppy as bp
 import random
 from typing import *
 
-random.seed(10)
+random.seed(0)
+
+leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
+
+def create_cards_from_same_color_event_set(color):
+    def cards_from_the_same_color(event):
+        if color in event.name:
+            return True
+        return False
+    return bp.EventSet(cards_from_the_same_color)
+
+def create_cards_from_different_color_event_set(color):
+    def cards_from_the_different_color(event):
+        if color in event.name:
+            return False
+        return True
+    return bp.EventSet(cards_from_the_different_color)
 
 class PlayerEventSet(bp.EventSet):
     def __init__(self, index):
@@ -48,21 +64,30 @@ def player_behavior(index, num_of_cards=2):
         card_event = yield bp.sync(waitFor=player_cards_event_set)
         cards_events.append(card_event)
 
-    yield bp.sync(waitFor=bp.BEvent("finished_dealing_cards"))
-    yield bp.sync(request=bp.BEvent(f"player_{index} is ready to play"))
+    yield bp.sync(waitFor=leading_card_event_set)
 
     yield bp.sync(request=cards_events)
 
+@bp.thread
+def enforce_same_color():
+    while True:
+        event = yield bp.sync(waitFor=leading_card_event_set)
+        card_color_index = event.name.find("card")
+        card_color = event.name[card_color_index+7:]
+        same_color_event_set = create_cards_from_same_color_event_set(card_color)
+        different_colors_event_set = create_cards_from_different_color_event_set(card_color)
+        yield bp.sync(waitFor=same_color_event_set,block=different_colors_event_set)
+
 def init_b_program():
-    b_program = bp.BProgram(bthreads=[ deal_cards(2,2),
-                                                                player_behavior(0,2),
-                                                                player_behavior(1, 2)],
+    b_program = bp.BProgram(bthreads=[  deal_cards(2,2),
+                                        player_behavior(0,2),
+                                        player_behavior(1,2),
+                                        enforce_same_color() ],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
 
 if __name__ == "__main__":
-    # test git commit
     b_program = init_b_program()
     b_program.run()
 
