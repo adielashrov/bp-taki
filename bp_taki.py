@@ -42,14 +42,16 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
-    cards = []
+    cards_events = []
     player_cards_event_set = PlayerEventSet(index)
     for i in range(num_of_cards):
         card_event = yield bp.sync(waitFor=player_cards_event_set)
-        cards.append(card_event)
+        cards_events.append(card_event)
 
     yield bp.sync(waitFor=bp.BEvent("finished_dealing_cards"))
     yield bp.sync(request=bp.BEvent(f"player_{index} is ready to play"))
+
+    yield bp.sync(request=cards_events)
 
 def init_b_program():
     b_program = bp.BProgram(bthreads=[ deal_cards(2,2),
