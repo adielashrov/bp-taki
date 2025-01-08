@@ -2,9 +2,11 @@ import bppy as bp
 import random
 from typing import *
 
-random.seed(0)
+random.seed(10)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
+
+general_player_event_set = bp.EventSet(lambda e: e.name.startswith('p_'))
 
 def create_cards_from_same_color_event_set(color):
     def cards_from_the_same_color(event):
@@ -66,7 +68,11 @@ def player_behavior(index, num_of_cards=2):
 
     yield bp.sync(waitFor=leading_card_event_set)
 
-    yield bp.sync(request=cards_events)
+    while cards_events:
+        event = yield bp.sync(waitFor=general_player_event_set, request=cards_events)
+        print(f"player{index} recived event:{event}")
+        if event.name.startswith(f"p_{index}"):
+            cards_events.remove(event)
 
 @bp.thread
 def enforce_same_color():
@@ -81,8 +87,8 @@ def enforce_same_color():
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  deal_cards(2,2),
                                         player_behavior(0,2),
-                                        player_behavior(1,2),
-                                        enforce_same_color() ],
+                                        player_behavior(1,2)],
+                                        #enforce_same_color() ],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
