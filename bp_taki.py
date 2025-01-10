@@ -53,8 +53,6 @@ def deal_cards(num_of_players=2, num_of_cards=2):
             player_card_event = bp.BEvent("p_" + str(i) + "_" + card_event.name)
             yield bp.sync(request= player_card_event)
 
-    yield bp.sync(request= bp.BEvent("finished_dealing_cards"))
-
     top_card = cards.pop()
     yield bp.sync(request=bp.BEvent(f"leading_{top_card.name}"))
 
@@ -70,25 +68,32 @@ def player_behavior(index, num_of_cards=2):
 
     while cards_events:
         event = yield bp.sync(waitFor=general_player_event_set, request=cards_events)
-        print(f"player{index} recived event:{event}")
         if event.name.startswith(f"p_{index}"):
             cards_events.remove(event)
 
+
+def extract_card_color(event: bp.BEvent) -> str:
+    card_color_index = event.name.find("card")
+    card_color = event.name[card_color_index+7:]
+    return card_color
+
 @bp.thread
 def enforce_same_color():
+    last_event = yield bp.sync(waitFor=leading_card_event_set)
+    card_color = extract_card_color(event=last_event)
+    different_colors_event_set = create_cards_from_different_color_event_set(card_color)
+    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
+
     while True:
-        event = yield bp.sync(waitFor=leading_card_event_set)
-        card_color_index = event.name.find("card")
-        card_color = event.name[card_color_index+7:]
-        same_color_event_set = create_cards_from_same_color_event_set(card_color)
+        card_color = extract_card_color(event=last_event)
         different_colors_event_set = create_cards_from_different_color_event_set(card_color)
-        yield bp.sync(waitFor=same_color_event_set,block=different_colors_event_set)
+        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
 
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  deal_cards(2,2),
                                         player_behavior(0,2),
-                                        player_behavior(1,2)],
-                                        #enforce_same_color() ],
+                                        player_behavior(1,2),
+                                        enforce_same_color() ],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
