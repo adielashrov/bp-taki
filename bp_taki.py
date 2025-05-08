@@ -30,6 +30,8 @@ general_player_event_set = bp.EventSet(lambda e: e.name.startswith('p_'))
 any_player_0 = bp.EventSet(lambda e: e.name.startswith('p_0'))
 any_player_1 = bp.EventSet(lambda e: e.name.startswith('p_1'))
 
+any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
+
 def create_cards_from_same_color_event_set(color):
     def cards_from_the_same_color(event):
         if color in event.name:
@@ -77,8 +79,15 @@ def game_manager():
     yield bp.sync(request=bp.BEvent("deal_leading_card"))
     yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
     yield bp.sync(request=bp.BEvent("start_game"))
-    yield bp.sync(waitFor=bp.BEvent("no_more_cards"))
+    last_event = yield bp.sync(waitFor=any_player_no_more_cards)
     yield bp.sync(request=bp.BEvent("end_game"))
+
+
+
+@bp.thread
+def end_of_game():  # blocks moves after the game is over
+    yield bp.sync(waitFor=bp.BEvent("end_game"))
+    yield bp.sync(block=bp.All())
 
 
 @bp.thread
@@ -115,6 +124,7 @@ def player_behavior(index, num_of_cards=2):
         if event.name.startswith(f"p_{index}"):
             cards_events.remove(event)
 
+    yield bp.sync(request=bp.BEvent(f"p_{index}_no_more_cards "))
 
 def extract_card_color(event: bp.BEvent) -> str:
     card_color_index = event.name.find("card")
@@ -150,7 +160,8 @@ def init_b_program():
                                         deal_cards(2,2),
                                         player_behavior(0,2),
                                         player_behavior(1,2) ,
-                                        enforce_turns()],
+                                        enforce_turns(),
+                                        end_of_game()],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
