@@ -27,6 +27,9 @@ leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 general_player_event_set = bp.EventSet(lambda e: e.name.startswith('p_'))
 
+any_player_0 = bp.EventSet(lambda e: e.name.startswith('p_0'))
+any_player_1 = bp.EventSet(lambda e: e.name.startswith('p_1'))
+
 def create_cards_from_same_color_event_set(color):
     def cards_from_the_same_color(event):
         if color in event.name:
@@ -118,6 +121,13 @@ def extract_card_color(event: bp.BEvent) -> str:
     card_color = event.name[card_color_index+7:]
     return card_color
 
+@bp.thread
+def enforce_turns():  # blocks moves that are not in turn
+    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    while True:
+        yield bp.sync(waitFor=any_player_0, block=any_player_1)
+        yield bp.sync(waitFor=any_player_1, block=any_player_0)
+
 
 @bp.thread
 def enforce_same_color():
@@ -139,8 +149,8 @@ def init_b_program():
     b_program = bp.BProgram(bthreads=[  game_manager(),
                                         deal_cards(2,2),
                                         player_behavior(0,2),
-                                        player_behavior(1,2),
-                                        enforce_same_color() ],
+                                        player_behavior(1,2) ,
+                                        enforce_turns()],
                          event_selection_strategy=bp.SimpleEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
