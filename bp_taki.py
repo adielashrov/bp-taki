@@ -1,6 +1,25 @@
 import bppy as bp
+from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
 import random
 from typing import *
+
+# Control events
+all_events = [
+    bp.BEvent("p_0_card_7_red"),
+    bp.BEvent("p_0_card_9_blue"),
+    bp.BEvent("p_1_card_3_red"),
+    bp.BEvent("p_1_card_1_blue"),
+    bp.BEvent("start_dealing_cards_to_players"),
+    bp.BEvent("finished_dealing_cards_to_players"),
+    bp.BEvent("deal_leading_card"),
+    bp.BEvent("finished_leading_card"),
+    bp.BEvent("start_game"),
+    bp.BEvent("no_more_cards"),
+    bp.BEvent("end_game"),
+    bp.BEvent("leading_card_5_blue"),
+    bp.BEvent("start_game"),
+    bp.BEvent("end_game")
+]
 
 random.seed(10)
 
@@ -126,9 +145,29 @@ def init_b_program():
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
 
-if __name__ == "__main__":
+
+def regular_execution_of_bp_program():
     b_program = init_b_program()
     b_program.run()
+
+
+def verify_taki_bp_program():
+    # Initialize verifier and check that the program does not end using the BPROGRAM_DONE flag.
+    # The verifier will use BDDs to check the property.
+    verifier = SymbolicBProgramVerifier(init_b_program, all_events)
+    result, explanation_str = verifier.verify(spec="G (!(event = BPROGRAM_DONE))", type="BMC", bound=10, find_counterexample=True,
+                                              print_info=True)
+
+    if result:
+        print("OK")
+    else:
+        print("Violation Found")
+        print("Counterexample:")
+        print(explanation_str)
+
+if __name__ == "__main__":
+    regular_execution_of_bp_program()
+    # verify_taki_bp_program()
 
 
 
