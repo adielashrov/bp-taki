@@ -117,6 +117,8 @@ def player_behavior(index, num_of_cards=2):
         card_event = yield bp.sync(waitFor=player_cards_event_set)
         cards_events.append(card_event)
 
+    cards_events = cards_events + [bp.BEvent(f"p_{index}_draw_card")]
+
     yield bp.sync(waitFor=bp.BEvent("start_game"))
 
     while cards_events:
