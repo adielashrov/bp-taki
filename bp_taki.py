@@ -42,9 +42,17 @@ def create_cards_from_same_color_event_set(color):
 
 def create_cards_from_different_color_event_set(color):
     def cards_from_the_different_color(event):
+        colors = ["blue", "red"]
+        if color in colors:
+            colors.remove(color)
+        else:
+            raise Exception(f"Wrong parameter to cards_from_the_different_color: {color}")
         if color in event.name:
             return False
-        return True
+        for c in colors:
+            if c in event.name:
+                return True
+        return False
     return bp.EventSet(cards_from_the_different_color)
 
 
