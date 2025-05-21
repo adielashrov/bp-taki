@@ -169,9 +169,7 @@ def enforce_same_color():
         if is_color_card_event(last_event):
             card_color = extract_card_color(event=last_event)
             different_colors_event_set = create_cards_from_different_color_event_set(card_color)
-            last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
-        else:
-            last_event = yield bp.sync(waitFor=general_player_event_set)
+        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
 
 
 def init_b_program():
