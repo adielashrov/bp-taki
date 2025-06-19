@@ -1,5 +1,6 @@
 import bppy as bp
 from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
+from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
 import random
 from typing import *
 
@@ -125,8 +126,6 @@ def player_behavior(index, num_of_cards=2):
         card_event = yield bp.sync(waitFor=player_cards_event_set)
         cards_events.append(card_event)
 
-    cards_events = cards_events + [bp.BEvent(f"p_{index}_draw_card")]
-
     yield bp.sync(waitFor=bp.BEvent("start_game"))
 
     while cards_events:
@@ -177,10 +176,10 @@ def init_b_program():
                                         deal_cards(2,4),
                                         player_behavior(0,4),
                                         player_behavior(1,4) ,
-                                        enforce_turns(),
-                                        enforce_same_color(),
-                                        end_of_game()],
-                         event_selection_strategy=bp.SimpleEventSelectionStrategy(),
+                                        enforce_turns()],
+                                        #enforce_same_color(),
+                                        #end_of_game()],
+                         event_selection_strategy=StatementPriorityBasedEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
 
