@@ -176,8 +176,8 @@ def init_b_program():
                                         deal_cards(2,4),
                                         player_behavior(0,4),
                                         player_behavior(1,4) ,
-                                        enforce_turns()],
-                                        #enforce_same_color(),
+                                        enforce_turns(),
+                                        enforce_same_color()],
                                         #end_of_game()],
                          event_selection_strategy=StatementPriorityBasedEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
