@@ -4,6 +4,8 @@ from bppy.model.event_selection.statement_priority_event_selection_strategy impo
 import random
 from typing import *
 
+NUM_OF_CARDS = 7
+
 # Control events
 all_events = [
     bp.BEvent("p_0_card_7_red"),
@@ -22,7 +24,7 @@ all_events = [
     bp.BEvent("end_game")
 ]
 
-random.seed(10)
+random.seed(0)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
@@ -57,6 +59,22 @@ def create_cards_from_different_color_event_set(color):
     return bp.EventSet(cards_from_the_different_color)
 
 
+def create_cards_from_different_number_event_set(number):
+    numbers = ["1", "3", "4", "5", "6", "7", "8", "9"]
+    numbers.remove(number)
+
+    def cards_from_the_different_number(event):
+        current_card_number = extract_card_number(event)
+        if number==current_card_number:
+            return False
+        elif current_card_number in numbers:
+            return True
+        else:
+            return False
+
+    return bp.EventSet(cards_from_the_different_number)
+
+
 class PlayerEventSet(bp.EventSet):
     def __init__(self, index):
         self.index = index
@@ -70,11 +88,11 @@ class PlayerEventSet(bp.EventSet):
 
 def create_and_shuffle_cards():
     all_cards = []
-    colors = ["blue", "red"]
-    values = ["1", "3", "4", "5","6","7","8","9"]
+    colors = ["blue", "red","green"]
+    numbers = ["1", "3", "4", "5","6","7","8","9"]
     for color in colors:
-        for value in values:
-            card_event_name= "card_" + value + "_" + color
+        for number in numbers:
+            card_event_name= "card_" + number + "_" + color
             all_cards.append(bp.BEvent(card_event_name))
 
     random.shuffle(all_cards)
@@ -136,9 +154,16 @@ def player_behavior(index, num_of_cards=2):
     yield bp.sync(request=bp.BEvent(f"p_{index}_no_more_cards "))
 
 def extract_card_color(event: bp.BEvent) -> str:
-    card_color_index = event.name.find("card")
-    card_color = event.name[card_color_index+7:]
+    card_str_index = event.name.find("card")
+    card_color = event.name[card_str_index+7:]
     return card_color
+
+
+def extract_card_number(event: bp.BEvent) -> str:
+    card_str_index = event.name.find("card")
+    card_number = event.name[card_str_index + 5:card_str_index+6]
+    return card_number
+
 
 def is_color_card_event(event: bp.BEvent) -> bool:
     for color in ["blue", "red"]:
@@ -171,13 +196,31 @@ def enforce_same_color():
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
 
 
+
+@bp.thread
+def enforce_same_number():
+    yield bp.sync(waitFor=bp.BEvent("deal_leading_card"))
+    last_event = yield bp.sync(waitFor=leading_card_event_set)
+    yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
+    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    card_number = extract_card_number(event=last_event)
+    different_numbers_event_set = create_cards_from_different_number_event_set(card_number)
+    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_numbers_event_set)
+
+    while True:
+        if is_color_card_event(last_event):
+            card_number = extract_card_number(event=last_event)
+            different_numbers_event_set = create_cards_from_different_number_event_set(card_number)
+        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_numbers_event_set)
+
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  game_manager(),
-                                        deal_cards(2,4),
-                                        player_behavior(0,4),
-                                        player_behavior(1,4) ,
+                                        deal_cards(2,NUM_OF_CARDS),
+                                        player_behavior(0, NUM_OF_CARDS),
+                                        player_behavior(1, NUM_OF_CARDS) ,
                                         enforce_turns(),
-                                        enforce_same_color()],
+                                        # enforce_same_color()],
+                                        enforce_same_number()],
                                         #end_of_game()],
                          event_selection_strategy=StatementPriorityBasedEventSelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
