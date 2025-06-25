@@ -1,4 +1,4 @@
-from simple_event_selection_strategy import SimpleEventSelectionStrategy
+from bppy.model.event_selection.simple_event_selection_strategy import SimpleEventSelectionStrategy
 from bppy.model.b_priority_event import BPEvent
 import random
 
