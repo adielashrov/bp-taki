@@ -30,6 +30,17 @@ class BPEvent(BEvent):
         super().__init__(name, data)
         self.priority = priority
 
+    def get_priority(self):
+        """
+        Get the priority of this event.
+
+        Returns
+        -------
+        float
+            The priority value (lower number = higher priority)
+        """
+        return self.priority
+
     def __key(self):
         # Add priority only for full BPEvent-to-BPEvent comparison
         return (self.name, tuple(sorted(self.data.items())), self.priority)
