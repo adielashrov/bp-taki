@@ -1,7 +1,7 @@
 import math
 from bppy.model.b_event import BEvent
 
-class BPriorityEvent(BEvent):
+class BPEvent(BEvent):
     """
     A class to represent a Behavioral Event (BEvent) object with priorities.
 
@@ -12,11 +12,11 @@ class BPriorityEvent(BEvent):
     data : dict
         Additional data associated with the event.
     priority : float
-        The priority of the event.
+        The priority of the event, which is math.inf by default.
     """
     def __init__(self, name="", data=None, priority=math.inf):
         """
-        Constructs all the necessary attributes for the BPriorityEvent object.
+        Constructs all the necessary attributes for the BPEvent object.
 
         Parameters
         ----------
@@ -31,20 +31,14 @@ class BPriorityEvent(BEvent):
         self.priority = priority
 
     def __key(self):
-        # Add priority only for full BPriorityEvent-to-BPriorityEvent comparison
+        # Add priority only for full BPEvent-to-BPEvent comparison
         return (self.name, tuple(sorted(self.data.items())), self.priority)
 
     def __hash__(self):
         return hash(self.__key())
 
     def __eq__(self, other):
-        if not isinstance(other, BEvent):
-            return False
-        if isinstance(other, BPriorityEvent):
-            return self.__key() == other.__key()
-        # Comparing to BEvent — ignore priority
-        return (self.name, tuple(sorted(self.data.items()))) == \
-               (other.name, tuple(sorted(other.data.items())))
+        return isinstance(other, BPEvent) and self.__key() == other.__key()
 
     def __repr__(self):
         return "{}(name={},data={}, priority={})".format(

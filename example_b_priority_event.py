@@ -1,6 +1,6 @@
 import bppy as bp
 import random
-from bppy.model.b_priority_event import BPriorityEvent
+from bppy.model.b_priority_event import BPEvent
 
 random.seed(10)
 
@@ -8,7 +8,7 @@ random.seed(10)
 def first_b_thread():
     i = 0
     while i < 3:
-        lastEvent = yield bp.sync(request=BPriorityEvent("Event_A", data={"content" : "test_data"}, priority=1.0))
+        lastEvent = yield bp.sync(request=BPEvent("Event_A", data={"content" : "test_data"}, priority=1.0))
         # print(lastEvent)
         i = i + 1
 
