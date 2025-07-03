@@ -11,20 +11,18 @@ class TestBPriorityEvent(unittest.TestCase):
         self.assertEqual(e1, e2)
         self.assertEqual(hash(e1), hash(e2))
 
-    def test_inequality_different_priority(self):
+    def test_equality_different_priority(self):
         e1 = BPEvent("tick", {"round": 1}, priority=10.0)
         e2 = BPEvent("tick", {"round": 1}, priority=10.1)
-        self.assertNotEqual(e1, e2)
-        self.assertNotEqual(hash(e1), hash(e2))
+        self.assertEqual(e1, e2)
+        self.assertEqual(hash(e1), hash(e2))
 
-    def test_equality_with_bevent(self):
+    def test_noequality_with_bevent(self):
         e1 = BPEvent("start", {"level": 2})
         e2 = BEvent("start", {"level": 2})
         self.assertNotEqual(e1, e2)
         self.assertNotEqual(e2, e1)
-        # What do we expect the behavior to be in this case? open question.??
-        # Consult with Tom.
-        self.assertNotEqual(hash(e1), hash(e2))
+        self.assertEqual(hash(e1), hash(e2))
 
     def test_inequality_with_different_name(self):
         e1 = BPEvent("start", {"level": 2.0})
