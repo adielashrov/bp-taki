@@ -1,7 +1,6 @@
 from bppy.model.event_selection.simple_event_selection_strategy import SimpleEventSelectionStrategy
 from bppy.model.b_priority_event import BPEvent
-import random
-
+from collections.abc import Iterable
 
 class EventPrioritySelectionStrategy(SimpleEventSelectionStrategy):
     """
@@ -10,66 +9,70 @@ class EventPrioritySelectionStrategy(SimpleEventSelectionStrategy):
     For events with the same priority, selection is arbitrary/random.
 
     This strategy is specifically designed to work with BPEvent instances.
-    Inherits from SimpleEventSelectionStrategy and only overrides the select method
+    Inherits from SimpleEventSelectionStrategy and only overrides the selectable_events method
     to implement priority-based event selection.
     """
 
-    def select(self, statements, external_events_queue=[]):
+    def filter_by_priority(self, selectable_events):
+
+        events_list = list(selectable_events)
+        for event in events_list:
+            if not isinstance(event, BPEvent):
+                raise TypeError(
+                    f"EventPrioritySelectionStrategy requires BPEvent instances, got {type(event)}: {event}")
+
+        events_list.sort(key=lambda event: event.get_priority())
+        highest_priority = events_list[0].get_priority()
+
+        highest_priority_events = [
+            event for event in events_list
+            if event.get_priority() == highest_priority
+        ]
+
+        return highest_priority_events
+
+    def selectable_events(self, statements):
         """
-        Selects the next event from the given statements and external events queue based on priority.
-
-        This method selects the event with the highest priority (lowest priority value) from the set of
-        selectable events. Only BPEvent instances are considered for priority-based selection.
-        If multiple events have the same priority, one is chosen arbitrarily.
-        If no events can be selected from the statements, an event from the external events queue
-        will be selected (or `None` is returned if the queue is empty).
-
-        Parameters
-        ----------
-        statements : list
-            A list of bthreads sync statements from which an event will be selected.
-        external_events_queue : list, optional
-            A list of external events that may be selected.
-
-        Returns
-        -------
-        BPEvent or `None`
-            The selected BPEvent with the highest priority, or `None` if no event can be selected.
-
-        Raises
-        ------
-        TypeError
-            If selectable events contain non-BPEvent instances.
+        Extracts selectable events by:
+        1. Collecting all requested events.
+        2. Deduplicating by (name, data, priority).
+        3. Removing blocked events (by equality).
+        4. Returning only those with the highest priority (lowest number).
         """
-        # Use the inherited method to get selectable events
-        selectable_events = self.selectable_events(statements)
+        all_events = []
 
-        if selectable_events:
-            # Convert to list for easier manipulation
-            events_list = list(selectable_events)
+        # Step 1: Accumulate all requested events
+        for statement in statements:
+            requests = statement.get("request")
+            if isinstance(requests, Iterable) and not isinstance(requests, (str, BPEvent)):
+                all_events.extend(requests)
+            elif isinstance(requests, BPEvent):
+                all_events.append(requests)
+            elif requests is not None:
+                raise TypeError("request must be BPEvent or iterable of BPEvents")
 
-            # Validate that all events are BPEvent instances
-            for event in events_list:
-                if not isinstance(event, BPEvent):
-                    raise TypeError(
-                        f"EventPrioritySelectionStrategy requires BPEvent instances, got {type(event)}: {event}")
+        # Step 2: Deduplicate by (name, data, priority)
+        seen_keys = set()
+        unique_events = []
+        for e in all_events:
+            if not isinstance(e, BPEvent):
+                raise TypeError(f"EventPrioritySelectionStrategy requires BPEvent instances, got {type(e)}: {e}")
+            # This is the equals
+            key = (e.name, tuple(sorted(e.data.items())), e.get_priority())
+            if key not in seen_keys:
+                seen_keys.add(key)
+                unique_events.append(e)
 
-            # Sort events by priority (lower number = higher priority)
-            events_list.sort(key=lambda event: event.get_priority())
+        # Step 3: Filter out blocked events
+        for statement in statements:
+            blocks = statement.get("block")
+            if isinstance(blocks, BPEvent):
+                unique_events = [e for e in unique_events if e != blocks]
+            elif blocks is not None:
+                unique_events = [e for e in unique_events if e not in blocks]
 
-            # Get the highest priority value
-            highest_priority = events_list[0].get_priority()
-
-            # Collect all events with the highest priority
-            highest_priority_events = [
-                event for event in events_list
-                if event.get_priority() == highest_priority
-            ]
-
-            # If multiple events have the same highest priority, choose randomly
-            return random.choice(highest_priority_events)
+        # Step 4: Keep only highest-priority events
+        if unique_events:
+            return self.filter_by_priority(unique_events)
         else:
-            if len(external_events_queue) > 0:
-                return external_events_queue.pop(0)
-            else:
-                return None
+            return None

@@ -42,8 +42,8 @@ class BPEvent(BEvent):
         return self.priority
 
     def __key(self):
-        # Add priority only for full BPEvent-to-BPEvent comparison
-        return (self.name, tuple(sorted(self.data.items())), self.priority)
+        # When we compare between two BPEvents - we ignore priority
+        return self.name, tuple(sorted(self.data.items()))
 
     def __hash__(self):
         return hash(self.__key())

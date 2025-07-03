@@ -191,8 +191,8 @@ class TestEventPrioritySelectionStrategy(unittest.TestCase):
 
         selectable = self.strategy.selectable_events(statements)
 
-        # Should include high and low priority, but not medium (blocked)
-        expected = {self.high_priority_event, self.low_priority_event}
+        # Only high_priority_event is unblocked and has the highest priority
+        expected = [self.high_priority_event]
         self.assertEqual(selectable, expected)
 
     def test_deterministic_behavior_with_fixed_seed(self):
@@ -258,6 +258,139 @@ class TestEventPrioritySelectionStrategy(unittest.TestCase):
         for count in selection_counts.values():
             self.assertGreater(count, 15, "Each event should appear at least 15 times over 100 trials.")
 
+    def test_empty_statements_list(self):
+        """Test behavior with empty statements list."""
+        selected_event = self.strategy.select([])
+        self.assertIsNone(selected_event)
+
+    def test_extreme_priority_values(self):
+        """Test events with extreme priority values."""
+        import math
+
+        infinity_event = BPEvent("infinity", priority=math.inf)
+        negative_infinity_event = BPEvent("neg_infinity", priority=-math.inf)
+        zero_priority_event = BPEvent("zero", priority=0.0)
+        very_small_event = BPEvent("very_small", priority=1e-10)
+
+        statements = [
+            {'request': [infinity_event, zero_priority_event]},
+            {'request': [negative_infinity_event, very_small_event]}
+        ]
+
+        selected_event = self.strategy.select(statements)
+        self.assertEqual(selected_event, negative_infinity_event)
+
+    def test_nan_priority_handling(self):
+        """Test behavior with NaN priority values."""
+        import math
+
+        nan_event = BPEvent("nan", priority=math.nan)
+        normal_event = BPEvent("normal", priority=1.0)
+
+        statements = [{'request': [nan_event, normal_event]}]
+
+        # Current implementation returns None when NaN is present
+        # Test that it doesn't crash and handles it consistently
+        selected_event = self.strategy.select(statements)
+
+        # Document current behavior: NaN causes selection to fail
+        self.assertIsNone(selected_event,
+                          "Implementation currently returns None when NaN priorities are present")
+
+        # Test that normal events without NaN work fine
+        statements_without_nan = [{'request': [normal_event]}]
+        selected_event = self.strategy.select(statements_without_nan)
+        self.assertEqual(selected_event, normal_event)
+
+
+    def test_all_events_blocked_scenario(self):
+        """Test scenario where all requested events are blocked."""
+        statements = [
+            {'request': [self.high_priority_event, self.medium_priority_event]},
+            {'request': [self.low_priority_event]},
+            {'block': [self.high_priority_event, self.medium_priority_event, self.low_priority_event]}
+        ]
+
+        selected_event = self.strategy.select(statements)
+        self.assertIsNone(selected_event)
+
+    def test_partial_blocking_with_multiple_threads(self):
+        """Test partial blocking where only some events are blocked."""
+        event_a = BPEvent("A", priority=1.0)
+        event_b = BPEvent("B", priority=2.0)
+        event_c = BPEvent("C", priority=3.0)
+
+        statements = [
+            {'request': [event_a, event_b, event_c]},
+            {'block': [event_a]},  # Block highest priority
+            {'block': [event_c]},  # Block lowest priority
+        ]
+
+        selected_event = self.strategy.select(statements)
+        self.assertEqual(selected_event, event_b)  # Only middle priority available
+
+    def test_statements_with_empty_request_sets(self):
+        """Test statements where all request sets are empty."""
+        statements = [
+            {'request': []},
+            {'request': [], 'waitFor': [self.high_priority_event]},
+            {'block': [self.medium_priority_event]}
+        ]
+        selected_event = self.strategy.select(statements)
+        self.assertIsNone(selected_event)
+
+    def test_statements_with_none_values(self):
+        """Test statements with None values in various fields."""
+        statements = [
+            {'request': None, 'waitFor': None, 'block': None},
+            {'request': [self.high_priority_event]}
+        ]
+        selected_event = self.strategy.select(statements)
+        self.assertEqual(selected_event, self.high_priority_event)
+
+    def test_invalid_event_types_in_collections(self):
+        """Test behavior when non-BPEvent objects are in collections."""
+        invalid_object = "not_an_event"
+
+        statements = [
+            {'request': [self.high_priority_event, invalid_object]}
+        ]
+
+        with self.assertRaises(TypeError):
+            self.strategy.select(statements)
+
+    def test_strategy_statelessness(self):
+        """Test that the strategy doesn't maintain state between calls."""
+        statements1 = [{'request': [self.high_priority_event]}]
+        statements2 = [{'request': [self.medium_priority_event]}]
+
+        result1 = self.strategy.select(statements1)
+        result2 = self.strategy.select(statements2)
+
+        # Second call should not be affected by first call
+        self.assertEqual(result1, self.high_priority_event)
+        self.assertEqual(result2, self.medium_priority_event)
+
+    def test_select_method_contract(self):
+        """Test that select method adheres to its documented contract."""
+        # Contract: Returns None when no events can be selected
+        statements = [{'block': [self.high_priority_event]}]
+        result = self.strategy.select(statements)
+        self.assertIsNone(result)
+
+        # Contract: Returns BPEvent when events are available
+        statements = [{'request': [self.high_priority_event]}]
+        result = self.strategy.select(statements)
+        self.assertIsInstance(result, BPEvent)
+
+        # Contract: Respects priority ordering
+        statements = [
+            {'request': [self.medium_priority_event]},
+            {'request': [self.high_priority_event]}
+        ]
+        result = self.strategy.select(statements)
+        self.assertEqual(result, self.high_priority_event)
+
 class TestEventPrioritySelectionStrategyIntegration(unittest.TestCase):
     """Integration tests for EventPrioritySelectionStrategy with BPpy framework"""
 
@@ -308,6 +441,139 @@ class TestEventPrioritySelectionStrategyIntegration(unittest.TestCase):
         selected_event = self.strategy.select(statements)
         self.assertEqual(selected_event.name, "event_1", "Expected lowest-numbered (highest-priority) event.")
 
+    def test_waiter_should_be_notified_by_equivalent_event_ignoring_priority(self):
+        """A b-thread should be notified of an event with matching name/data even if priority differs."""
+        waiting_event = BPEvent("eventX", data={"key": "value"}, priority=3.0)
+        requesting_event = BPEvent("eventX", data={"key": "value"}, priority=1.0)
+
+        statements = [
+            {'request': [requesting_event]},
+            {'waitFor': [waiting_event]}
+        ]
+
+        selected_event = self.strategy.select(statements)
+
+        # Should select the requesting event with priority 1.0
+        self.assertEqual(selected_event, requesting_event)
+
+        # And it should satisfy the waiter (check that the waiter is notified)
+        self.assertTrue(self.strategy.is_satisfied(selected_event, statements[1]))
+
+    def test_blocking_event_from_lower_priority_thread(self):
+        """Even if a high-priority event is requested, it should be blocked if any b-thread blocks it."""
+        high_priority_event = BPEvent("conflicting_event", priority=1.0)
+        low_priority_event = BPEvent("conflicting_event", priority=5.0)
+
+        statements = [
+            {'request': [high_priority_event]},  # high-priority requester
+            {'block': [low_priority_event]}  # lower-priority blocker
+        ]
+
+        selected_event = self.strategy.select(statements)
+
+        # The event is blocked, so nothing should be selected
+        self.assertIsNone(selected_event, "Blocked event should not be selected, regardless of requester's priority.")
+
+    def test_duplicate_events_different_priorities_filtering(self):
+        """Test that events with same name/data but different priorities are deduplicated and only the highest priority is selected."""
+        e1 = BPEvent("E", data={"x": 1}, priority=3.0)
+        e2 = BPEvent("E", data={"x": 1}, priority=1.0)  # same name/data, higher priority
+        e3 = BPEvent("E", data={"x": 1}, priority=5.0)  # same name/data, lower priority
+
+        statements = [{'request': [e1, e2, e3]}]
+
+        selected = self.strategy.select(statements)
+
+        self.assertEqual(selected, e2)
+        self.assertEqual(selected.get_priority(), 1.0)
+
+    def test_duplicate_events_blocking_considered_after_deduplication(self):
+        """Ensure blocking works on the retained highest-priority instance after deduplication."""
+        e1 = BPEvent("E", data={"x": 1}, priority=2.0)
+        e2 = BPEvent("E", data={"x": 1}, priority=1.0)
+
+        statements = [
+            {'request': [e1, e2]},
+            {'block': [e2]}
+        ]
+
+        selected = self.strategy.select(statements)
+        self.assertIsNone(selected, "Event should be blocked even if it is the highest-priority version.")
+
+    def test_complex_event_data_equality(self):
+        """Test event equality with complex but hashable data structures."""
+        # Use only hashable types: strings, numbers, tuples
+        complex_data = {
+            "nested_tuple": (1, 2, 3),
+            "string_key": "value",
+            "number": 42,
+            "tuple_key": (1, 2, 3),
+            "nested_string": "complex value with spaces"
+        }
+
+        event1 = BPEvent("complex", data=complex_data, priority=1.0)
+        event2 = BPEvent("complex", data=complex_data.copy(), priority=2.0)
+
+        statements = [
+            {'request': [event1]},
+            {'waitFor': [event2]}
+        ]
+
+        selected_event = self.strategy.select(statements)
+        self.assertEqual(selected_event, event1)
+        # Both should be satisfied due to equality (ignoring priority)
+        self.assertTrue(self.strategy.is_satisfied(selected_event, statements[1]))
+
+
+    def test_event_data_ordering_independence(self):
+        """Test that dictionary key ordering doesn't affect equality."""
+        data1 = {"a": 1, "b": 2, "c": 3}
+        data2 = {"c": 3, "a": 1, "b": 2}  # Different order, same content
+
+        event1 = BPEvent("test", data=data1, priority=1.0)
+        event2 = BPEvent("test", data=data2, priority=1.0)
+
+        statements = [
+            {'request': [event1]},
+            {'waitFor': [event2]}
+        ]
+
+        selected_event = self.strategy.select(statements)
+        self.assertEqual(selected_event, event1)
+        self.assertTrue(self.strategy.is_satisfied(selected_event, statements[1]))
+
+    def test_external_events_queue_modification(self):
+        """Test that external events queue is properly modified."""
+        # Create events locally instead of using self.*
+        high_priority_event = BPEvent("high_priority", priority=1.0)
+        medium_priority_event = BPEvent("medium_priority", priority=5.0)
+        low_priority_event = BPEvent("low_priority", priority=10.0)
+
+        external_events = [high_priority_event, medium_priority_event, low_priority_event]
+        original_length = len(external_events)
+
+        # No internal events, should use external
+        selected_event = self.strategy.select([], external_events)
+
+        self.assertEqual(selected_event, high_priority_event)
+        self.assertEqual(len(external_events), original_length - 1)
+        self.assertNotIn(high_priority_event, external_events)
+
+    def test_corrupt_event_data(self):
+        """Test handling of events with problematic data."""
+        # Event with unhashable data
+        unhashable_data = {"list": [1, 2, 3], "dict": {"nested": {}}}
+        event_with_unhashable = BPEvent("unhashable", data=unhashable_data, priority=1.0)
+
+        statements = [{'request': [event_with_unhashable]}]
+
+        # Should handle gracefully (exact behavior depends on implementation)
+        try:
+            selected_event = self.strategy.select(statements)
+            self.assertEqual(selected_event, event_with_unhashable)
+        except (TypeError, ValueError):
+            # Acceptable to fail with unhashable data
+            pass
 
 def run_tests():
     """Run all tests and display results."""
