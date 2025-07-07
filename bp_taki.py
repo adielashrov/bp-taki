@@ -1,10 +1,12 @@
 import bppy as bp
 from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
 from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
+from bppy.model.b_priority_event import BPEvent
+from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
 import random
 from typing import *
 
-NUM_OF_CARDS = 7
+NUM_OF_CARDS = 4
 
 # Control events
 all_events = [
@@ -102,10 +104,10 @@ class PlayerEventSet(bp.EventSet):
         self.index = index
         super().__init__(lambda event: event.name.startswith(f"p_{self.index}"))
     def __contains__(self, item):
-        if isinstance(item, bp.BEvent):
+        if isinstance(item, BPEvent):
             return item.name.startswith(f"p_{self.index}")
         else:
-            raise TypeError(f"PlayerOneEventSet: Expected item of type BEvent, got {type(item)}")
+            raise TypeError(f"PlayerOneEventSet: Expected item of type BPEvent, got {type(item)}")
 
 
 def create_and_shuffle_cards():
@@ -115,7 +117,7 @@ def create_and_shuffle_cards():
     for color in colors:
         for number in numbers:
             card_event_name= "card_" + number + "_" + color
-            all_cards.append(bp.BEvent(card_event_name))
+            all_cards.append(BPEvent(card_event_name, priority=10.0))
 
     random.shuffle(all_cards)
     return all_cards
@@ -123,71 +125,77 @@ def create_and_shuffle_cards():
 
 @bp.thread
 def game_manager():
-    yield bp.sync(request=bp.BEvent("start_dealing_cards_to_players"))
-    yield bp.sync(waitFor=bp.BEvent("finished_dealing_cards_to_players"))
-    yield bp.sync(request=bp.BEvent("deal_leading_card"))
-    yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
-    yield bp.sync(request=bp.BEvent("start_game"))
+    yield bp.sync(request=BPEvent("start_dealing_cards_to_players", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("finished_dealing_cards_to_players", priority=10.0))
+    yield bp.sync(request=BPEvent("deal_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(request=BPEvent("start_game", priority=10.0))
     last_event = yield bp.sync(waitFor=any_player_no_more_cards)
-    yield bp.sync(request=bp.BEvent("end_game"))
+    yield bp.sync(request=BPEvent("end_game", priority=10.0))
 
 
 
 @bp.thread
 def end_of_game():  # blocks moves after the game is over
-    yield bp.sync(waitFor=bp.BEvent("end_game"))
+    yield bp.sync(waitFor=BPEvent("end_game", priority=10.0))
     yield bp.sync(block=bp.All())
 
 
 @bp.thread
 def deal_cards(num_of_players=2, num_of_cards=2):
-    yield bp.sync(waitFor=bp.BEvent("start_dealing_cards_to_players"))
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
     cards = create_and_shuffle_cards()
     for i in range(num_of_players):
         for j in range(num_of_cards):
             card_event = cards.pop()
-            player_card_event = bp.BEvent("p_" + str(i) + "_" + card_event.name)
+            player_card_event = BPEvent("p_" + str(i) + "_" + card_event.name, priority=10.0)
             yield bp.sync(request= player_card_event)
-    yield bp.sync(request=bp.BEvent("finished_dealing_cards_to_players"))
+    yield bp.sync(request=BPEvent("finished_dealing_cards_to_players", priority=10.0))
 
     # Deal the leading card
-    yield bp.sync(waitFor=bp.BEvent("deal_leading_card"))
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     top_card = cards.pop()
-    yield bp.sync(request=bp.BEvent(f"leading_{top_card.name}"))
-    yield bp.sync(request=bp.BEvent("finished_leading_card"))
-
+    yield bp.sync(request=BPEvent(f"leading_{top_card.name}", priority=10.0))
+    yield bp.sync(request=BPEvent("finished_leading_card", priority=10.0))
+    #while True:
+    #    last_event = yield bp.sync(waitFor=bp.All)
+    #    if last_event.name.indexof("_draw_card"):
+    #       print("Received ")
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
-    yield bp.sync(waitFor=bp.BEvent("start_dealing_cards_to_players"))
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
     cards_events = []
     player_cards_event_set = PlayerEventSet(index)
     for i in range(num_of_cards):
         card_event = yield bp.sync(waitFor=player_cards_event_set)
         cards_events.append(card_event)
 
-    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
+    # draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    # cards_events.append(draw_card_event)
     while cards_events:
         event = yield bp.sync(waitFor=general_player_event_set, request=cards_events)
         if event.name.startswith(f"p_{index}"):
             cards_events.remove(event)
 
-    yield bp.sync(request=bp.BEvent(f"p_{index}_no_more_cards "))
+    yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards ", priority=10.0))
 
-def extract_card_color(event: bp.BEvent) -> str:
+def extract_card_color(event: BPEvent) -> str:
     card_str_index = event.name.find("card")
     card_color = event.name[card_str_index+7:]
     return card_color
 
 
-def extract_card_number(event: bp.BEvent) -> str:
+def extract_card_number(event: BPEvent) -> str:
+    print(f"extract_card_color event: {event}")
     card_str_index = event.name.find("card")
     card_number = event.name[card_str_index + 5:card_str_index+6]
     return card_number
 
 
-def  extract_card_color_and_number(event: bp.BEvent) -> tuple[str,str]:
+def  extract_card_color_and_number(event: BPEvent) -> tuple[str,str]:
     card_str_index = event.name.find("card")
     if card_str_index != -1:
         card_color = event.name[card_str_index+7:]
@@ -197,14 +205,14 @@ def  extract_card_color_and_number(event: bp.BEvent) -> tuple[str,str]:
         return None, None
 
 
-def is_color_card_event(event: bp.BEvent) -> bool:
+def is_color_card_event(event: BPEvent) -> bool:
     for color in ["blue", "red","green"]:
         if color in event.name:
             return True
     return False
 
 
-def is_color_or_number_card_event(event: bp.BEvent) -> bool:
+def is_color_or_number_card_event(event: BPEvent) -> bool:
     for color in ["blue", "red","green"]:
         if color in event.name:
             return True
@@ -216,7 +224,7 @@ def is_color_or_number_card_event(event: bp.BEvent) -> bool:
 
 @bp.thread
 def enforce_turns():  # blocks moves that are not in turn
-    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
     while True:
         yield bp.sync(waitFor=any_player_0, block=any_player_1)
         yield bp.sync(waitFor=any_player_1, block=any_player_0)
@@ -224,10 +232,10 @@ def enforce_turns():  # blocks moves that are not in turn
 
 @bp.thread
 def enforce_same_color():
-    yield bp.sync(waitFor=bp.BEvent("deal_leading_card"))
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
-    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color = extract_card_color(event=last_event)
     different_colors_event_set = create_cards_from_different_color_event_set(card_color)
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
@@ -242,10 +250,10 @@ def enforce_same_color():
 
 @bp.thread
 def enforce_same_number():
-    yield bp.sync(waitFor=bp.BEvent("deal_leading_card"))
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
-    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_number = extract_card_number(event=last_event)
     different_numbers_event_set = create_cards_from_different_number_event_set(card_number)
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_numbers_event_set)
@@ -259,10 +267,10 @@ def enforce_same_number():
 
 @bp.thread
 def enforce_same_color_or_number():
-    yield bp.sync(waitFor=bp.BEvent("deal_leading_card"))
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=bp.BEvent("finished_leading_card"))
-    yield bp.sync(waitFor=bp.BEvent("start_game"))
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color, card_number = extract_card_color_and_number(event=last_event)
     different_colors_or_numbers_event_set = create_cards_from_different_number_or_color_event_set(card_color, card_number)
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_numbers_event_set)
@@ -285,7 +293,7 @@ def init_b_program():
                                         #enforce_same_number()],
                                         enforce_same_color_or_number()],
                                         #end_of_game()],
-                         event_selection_strategy=StatementPriorityBasedEventSelectionStrategy(),
+                         event_selection_strategy=EventPrioritySelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
 
