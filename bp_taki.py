@@ -31,13 +31,13 @@ random.seed(0)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
-pattern = r"(p_\d+_(draw_card|card_\d+_\w+))"
+pattern = pattern = r"(p_\d+_(draw_card|card_\d+_\w+))|end_game"
 general_player_event_set = bp.EventSet(lambda e:
     hasattr(e, 'name') and re.match(pattern, e.name) is not None
 )
-
-any_player_0 = bp.EventSet(lambda e: 'p_0' in e.name)
-any_player_1 = bp.EventSet(lambda e: 'p_1' in e.name)
+#Maybe we should support union of EventSets, like this case.
+all_player_0_except_no_more_cards = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name)
+all_player_1_except_no_more_cards = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name)
 
 any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 
@@ -154,14 +154,14 @@ def game_manager():
     yield bp.sync(request=BPEvent("deal_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(request=BPEvent("start_game", priority=10.0))
-    last_event = yield bp.sync(waitFor=any_player_no_more_cards)
-    yield bp.sync(request=BPEvent("end_game", priority=10.0))
+    yield bp.sync(waitFor=any_player_no_more_cards)
+    yield bp.sync(request=BPEvent("end_game", priority=7.0))
 
 
 
 @bp.thread
 def end_of_game():  # blocks moves after the game is over
-    yield bp.sync(waitFor=BPEvent("end_game", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("end_game", priority=7.0))
     yield bp.sync(block=bp.All())
 
 
@@ -196,34 +196,43 @@ def remove_deal_prefix_from_event(event):
     card_name = event.name.removeprefix("deal_")
     return card_name
 
+def list_contains_only_draw_card_event(action_events):
+    if len(action_events) == 1 and "_draw_card" in action_events[0].name:
+        return True
+    return False
+
 @bp.thread
 def player_behavior(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
-    cards_events = []
+    action_events = []
     deal_player_cards_event_set = DealCardsPlayerEventSet(index)
     for i in range(num_of_cards):
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
         card_name = remove_deal_prefix_from_event(deal_card_event)
-        cards_events.append(BPEvent(card_name, priority=10.0))
+        action_events.append(BPEvent(card_name, priority=10.0))
 
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
     # Add draw_card_event to the cards events(Possible actions of player)
     draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
-    cards_events.append(draw_card_event)
+    action_events.append(draw_card_event)
 
-    while cards_events:
-        event = yield bp.sync(waitFor=general_player_event_set, request=cards_events)
+    while True:
+        event = yield bp.sync(waitFor=general_player_event_set, request=action_events)
         if event.name.startswith(f"p_{index}_card"):
-            cards_events.remove(event)
+            action_events.remove(event)
+            # If the only event left is draw_card, break and end the game.
+            if list_contains_only_draw_card_event(action_events):
+                yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards ", priority=8.0))
+                break
         # If there is a draw card event, wait for a card to be dealt.
         if event.name.startswith(f"p_{index}_draw_card"):
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
-            print(f"player_{index} received card event: ", deal_card_event)
             card_name = remove_deal_prefix_from_event(deal_card_event)
-            cards_events.append(BPEvent(card_name, priority=10.0))
-
-    yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards ", priority=10.0))
+            action_events.append(BPEvent(card_name, priority=10.0))
+        # If the other player ended the game.
+        if event.name.startswith(f"end_game"): # similar to breakupon.
+            break
 
 def extract_card_color(event: BPEvent) -> str:
     card_str_index = event.name.find("card")
@@ -266,13 +275,13 @@ def is_color_or_number_card_event(event: BPEvent) -> bool:
 def enforce_turns():  # blocks moves that are not in turn
     yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
     while True:
-        last_event_p_0 = yield bp.sync(waitFor=any_player_0, block=any_player_1)
+        last_event_p_0 = yield bp.sync(waitFor=all_player_0_except_no_more_cards, block=all_player_1_except_no_more_cards)
         if is_event_draw_card_event(0, last_event_p_0):
-            yield bp.sync(waitFor=any_player_0, block=any_player_1)
+            yield bp.sync(waitFor=all_player_0_except_no_more_cards, block=all_player_1_except_no_more_cards)
 
-        last_event_p_1 = yield bp.sync(waitFor=any_player_1, block=any_player_0)
+        last_event_p_1 = yield bp.sync(waitFor=all_player_1_except_no_more_cards, block=all_player_0_except_no_more_cards)
         if is_event_draw_card_event(1, last_event_p_1):
-            yield bp.sync(waitFor=any_player_1, block=any_player_0)
+            yield bp.sync(waitFor=all_player_1_except_no_more_cards, block=all_player_0_except_no_more_cards)
 
 
 @bp.thread
