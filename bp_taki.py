@@ -31,7 +31,7 @@ random.seed(0)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
-pattern = r"p_\d+_card_\d+_\w+"
+pattern = r"(p_\d+_(draw_card|card_\d+_\w+))"
 general_player_event_set = bp.EventSet(lambda e:
     hasattr(e, 'name') and re.match(pattern, e.name) is not None
 )
@@ -98,6 +98,10 @@ def create_cards_from_different_number_or_color_event_set(card_color, card_numbe
                         f"color_event_set: {card_color,card_number}")
 
     def cards_from_the_different_color_or_number(event):
+        # Edge case, we don't want to block events from different
+        # colors/number if they are a new card being dealt.
+        if event.name.startswith("deal_p_"):
+            return False
         t_card_color, t_card_number = extract_card_color_and_number(event)
         if t_card_color == card_color or t_card_number == card_number:
             return False
@@ -181,6 +185,8 @@ def deal_cards(num_of_players=2, num_of_cards=2):
     while True:
         last_event = yield bp.sync(waitFor=[BPEvent("p_0_draw_card"), BPEvent("p_1_draw_card")])
         player_index = 0 if "p_0" in last_event.name else 1
+        if not cards: # imagine an infinite pile of cards.
+            cards = create_and_shuffle_cards()
         card_event = cards.pop()
         deal_player_card_event = BPEvent("deal_p_" + str(player_index) + "_" + card_event.name, priority=9.0)
         other_player_cards_event_set = PlayerEventSet(1-player_index)
@@ -250,12 +256,9 @@ def is_color_card_event(event: BPEvent) -> bool:
 
 
 def is_color_or_number_card_event(event: BPEvent) -> bool:
-    for color in ["blue", "red","green"]:
-        if color in event.name:
-            return True
-    for number in   ["1", "3", "4", "5", "6", "7", "8", "9"]:
-        if number in event.name:
-            return True
+    pattern = r"p_\d+_card_\d+_\w+"
+    if re.match(pattern, event.name) is not None:
+        return True
     return False
 
 
