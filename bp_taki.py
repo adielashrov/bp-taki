@@ -269,7 +269,7 @@ def enforce_turns():  # blocks moves that are not in turn
 
         last_event_p_1 = yield bp.sync(waitFor=any_player_1, block=any_player_0)
         if is_event_draw_card_event(1, last_event_p_1):
-            yield bp.sync(waitFor=any_player_1, block=any_player_1)
+            yield bp.sync(waitFor=any_player_1, block=any_player_0)
 
 
 @bp.thread
