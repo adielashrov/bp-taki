@@ -3,6 +3,7 @@ from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
 from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
 from bppy.model.b_priority_event import BPEvent
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
+from bppy.analysis.dfs_bprogram_verifier import DFSBProgramVerifier
 import random
 import re
 from typing import *
@@ -227,7 +228,7 @@ def player_behavior(index, num_of_cards=2):
                 break
         # If there is a draw card event, wait for a card to be dealt.
         if event.name.startswith(f"p_{index}_draw_card"):
-            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
             card_name = remove_deal_prefix_from_event(deal_card_event)
             action_events.append(BPEvent(card_name, priority=10.0))
         # If the other player ended the game.
@@ -337,13 +338,22 @@ def enforce_same_color_or_number():
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_numbers_event_set)
 
 
+@bp.thread
+def identify_deadlock():
+    last_event = yield bp.sync(request = BPEvent("deadlock"), waitFor=BPEvent("end_game", priority=10.0))
+    if last_event.name.startswith("deadlock"):
+        assert False
+    else:
+        assert True
+
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  game_manager(),
                                         deal_cards(2,NUM_OF_CARDS),
                                         player_behavior(0, NUM_OF_CARDS),
                                         player_behavior(1, NUM_OF_CARDS) ,
                                         enforce_turns(),
-                                        enforce_same_color_or_number()],
+                                        enforce_same_color_or_number(),
+                                        identify_deadlock()],
                          event_selection_strategy=EventPrioritySelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
@@ -354,23 +364,22 @@ def regular_execution_of_bp_program():
     b_program.run()
 
 
-def verify_taki_bp_program():
-    # Initialize verifier and check that the program does not end using the BPROGRAM_DONE flag.
-    # The verifier will use BDDs to check the property.
-    verifier = SymbolicBProgramVerifier(init_b_program, all_events)
-    result, explanation_str = verifier.verify(spec="G (!(event = BPROGRAM_DONE))", type="BMC", bound=10, find_counterexample=True,
-                                              print_info=True)
+def verify_with_dfs():
+    # initialize DFS verifier with the b-program generator and specify max_trace_length
+    ver = DFSBProgramVerifier(init_b_program, max_trace_length=100)
+    ok, counter_example = ver.verify()
 
-    if result:
+    # check the verification results and print accordingly
+    if ok:
         print("OK")
     else:
         print("Violation Found")
         print("Counterexample:")
-        print(explanation_str)
+        print(counter_example)
 
 if __name__ == "__main__":
     regular_execution_of_bp_program()
-    # verify_taki_bp_program()
+    # verify_with_dfs()
 
 
 
