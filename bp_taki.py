@@ -376,6 +376,46 @@ def identify_deadlock():
     else:
         assert True
 
+@bp.thread
+def detect_illegal_post_game_moves():
+    yield bp.sync(waitFor=BPEvent("end_game", priority=7.0))
+    # Allow one more event and check
+    illegal_event = yield bp.sync(waitFor=bp.All())
+    assert False, f"Illegal event occurred after game ended: {illegal_event}"
+
+
+@bp.thread
+def verify_turn_alternation():
+    yield bp.sync(waitFor=BPEvent("start_game"))
+
+    last_acting_player = None
+
+    while True:
+        # Wait for any game event (not just player actions)
+        event = yield bp.sync(waitFor=bp.EventSet(lambda e: True))
+
+        # Determine if this event is a player action
+        is_player_action = (
+            (event.name.startswith("p_0_card_") or event.name.startswith("p_1_card_")) or
+            (event.name == "p_0_draw_card" or event.name == "p_1_draw_card")
+        )
+
+        if is_player_action:
+            # Determine which player acted
+            acting_player = 0 if event.name.startswith("p_0_") else 1
+
+            if last_acting_player is not None and acting_player == last_acting_player:
+                raise AssertionError(
+                    f"[Verifier ❌] Turn violation: Player {acting_player} acted twice in a row: {event}"
+                )
+
+            last_acting_player = acting_player
+        # else:
+            # Not a player action — just log
+            # print(f"[Verifier] Ignored (not a player action): {event.name}")
+
+
+
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  game_manager(),
                                         deal_cards(2,NUM_OF_CARDS),
@@ -383,7 +423,9 @@ def init_b_program():
                                         player_behavior(1, NUM_OF_CARDS) ,
                                         enforce_turns(),
                                         enforce_same_color_or_number(),
-                                        identify_deadlock()],
+                                        identify_deadlock(),
+                                        detect_illegal_post_game_moves(),
+                                        verify_turn_alternation()],
                          event_selection_strategy=EventPrioritySelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
