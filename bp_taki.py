@@ -134,7 +134,7 @@ class DealCardsPlayerEventSet(bp.EventSet):
         else:
             raise TypeError(f"Player_{self.index}_DealCardsPlayerEventSet: Expected item of type BPEvent, got {type(item)}")
 
-
+'''
 def create_and_shuffle_cards():
     all_cards = []
     colors = ["blue", "red","green"]
@@ -146,7 +146,35 @@ def create_and_shuffle_cards():
 
     random.shuffle(all_cards)
     return all_cards
+'''
 
+def create_and_shuffle_cards():
+    # option 2:
+    all_cards = [BPEvent(name="card_8_red", data={}, priority=10.0),
+                 BPEvent(name="card_1_blue", data={}, priority=10.0),
+                 BPEvent(name="card_9_green", data={}, priority=10.0),
+                 BPEvent(name="card_4_green", data={}, priority=10.0),
+                 BPEvent(name="card_8_blue", data={}, priority=10.0),
+                 BPEvent(name="card_7_blue", data={}, priority=10.0),
+                 BPEvent(name="card_9_blue", data={}, priority=10.0),
+                 BPEvent(name="card_4_red", data={}, priority=10.0),
+                 BPEvent(name="card_8_green", data={}, priority=10.0),
+                 BPEvent(name="card_6_green", data={}, priority=10.0),
+                 BPEvent(name="card_6_blue", data={}, priority=10.0),
+                 BPEvent(name="card_4_blue", data={}, priority=10.0),
+                 BPEvent(name="card_7_green", data={}, priority=10.0),
+                 BPEvent(name="card_5_blue", data={}, priority=10.0),
+                 BPEvent(name="card_3_green", data={}, priority=10.0),
+                 BPEvent(name="card_5_red", data={}, priority=10.0),
+                 BPEvent(name="card_5_green", data={}, priority=10.0),
+                 BPEvent(name="card_3_red", data={}, priority=10.0),
+                 BPEvent(name="card_6_red", data={}, priority=10.0),
+                 BPEvent(name="card_9_red", data={}, priority=10.0),
+                 BPEvent(name="card_1_green", data={}, priority=10.0),
+                 BPEvent(name="card_1_red", data={}, priority=10.0),
+                 BPEvent(name="card_3_blue", data={}, priority=10.0),
+                 BPEvent(name="card_7_red", data={}, priority=10.0)]
+    return all_cards
 
 @bp.thread
 def game_manager():
@@ -228,7 +256,9 @@ def player_behavior(index, num_of_cards=2):
                 break
         # If there is a draw card event, wait for a card to be dealt.
         if event.name.startswith(f"p_{index}_draw_card"):
-            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
+            # if we want to simulate a deadlock - add the following block   - block=bp.AllExcept(BPEvent("deadlock"))
+            # deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_from_event(deal_card_event)
             action_events.append(BPEvent(card_name, priority=10.0))
         # If the other player ended the game.
