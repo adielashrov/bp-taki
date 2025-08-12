@@ -419,6 +419,7 @@ def verify_turn_alternation():
 def enforce_last_card_announcement():
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     hand_sizes = {0: NUM_OF_CARDS, 1: NUM_OF_CARDS}
+    pending_announcement = {0: False, 1: False}
 
     while True:
         event = yield bp.sync(waitFor=general_player_event_set)
@@ -426,20 +427,38 @@ def enforce_last_card_announcement():
         if event.name.startswith("p_0_card"):
             hand_sizes[0] -= 1
             print(f"[HAND_SIZE] Player 0 played a card. New hand size: {hand_sizes[0]}")
+
+            if hand_sizes[0] == 1:
+                pending_announcement[0] = True
+                print(f"[LAST_CARD] Player 0 has 1 card and must announce 'last card!'")
+
         elif event.name.startswith("p_1_card"):
             hand_sizes[1] -= 1
             print(f"[HAND_SIZE] Player 1 played a card. New hand size: {hand_sizes[1]}")
+
+            if hand_sizes[1] == 1:
+                pending_announcement[1] = True
+                print(f"[LAST_CARD] Player 1 has 1 card and must announce 'last card!'")
 
         elif event.name == "p_0_draw_card":
             # Wait for the actual card to be dealt
             deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(0))
             hand_sizes[0] += 1
             print(f"[HAND_SIZE] Player 0 drew a card ({deal_event.name}). New hand size: {hand_sizes[0]}")
+
+            if hand_sizes[0] != 1 and pending_announcement[0]:
+                pending_announcement[0] = False
+                print(f"[LAST_CARD] Player 0 no longer has 1 card - announcement no longer needed")
+
         elif event.name == "p_1_draw_card":
             # Wait for the actual card to be dealt
             deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(1))
             hand_sizes[1] += 1
             print(f"[HAND_SIZE] Player 1 drew a card ({deal_event.name}). New hand size: {hand_sizes[1]}")
+
+            if hand_sizes[1] != 1 and pending_announcement[1]:
+                pending_announcement[1] = False
+                print(f"[LAST_CARD] Player 1 no longer has 1 card - announcement no longer needed")
 
         # Skip other events (like announcements, game events, etc.)
         elif event.name == "end_game":
