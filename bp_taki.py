@@ -415,6 +415,36 @@ def verify_turn_alternation():
             # print(f"[Verifier] Ignored (not a player action): {event.name}")
 
 
+@bp.thread
+def enforce_last_card_announcement():
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    hand_sizes = {0: NUM_OF_CARDS, 1: NUM_OF_CARDS}
+
+    while True:
+        event = yield bp.sync(waitFor=general_player_event_set)
+
+        if event.name.startswith("p_0_card"):
+            hand_sizes[0] -= 1
+            print(f"[HAND_SIZE] Player 0 played a card. New hand size: {hand_sizes[0]}")
+        elif event.name.startswith("p_1_card"):
+            hand_sizes[1] -= 1
+            print(f"[HAND_SIZE] Player 1 played a card. New hand size: {hand_sizes[1]}")
+
+        elif event.name == "p_0_draw_card":
+            # Wait for the actual card to be dealt
+            deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(0))
+            hand_sizes[0] += 1
+            print(f"[HAND_SIZE] Player 0 drew a card ({deal_event.name}). New hand size: {hand_sizes[0]}")
+        elif event.name == "p_1_draw_card":
+            # Wait for the actual card to be dealt
+            deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(1))
+            hand_sizes[1] += 1
+            print(f"[HAND_SIZE] Player 1 drew a card ({deal_event.name}). New hand size: {hand_sizes[1]}")
+
+        # Skip other events (like announcements, game events, etc.)
+        elif event.name == "end_game":
+            break
+
 
 def init_b_program():
     b_program = bp.BProgram(bthreads=[  game_manager(),
@@ -423,6 +453,7 @@ def init_b_program():
                                         player_behavior(1, NUM_OF_CARDS) ,
                                         enforce_turns(),
                                         enforce_same_color_or_number(),
+                                        enforce_last_card_announcement(),
                                         identify_deadlock(),
                                         detect_illegal_post_game_moves(),
                                         verify_turn_alternation()],
