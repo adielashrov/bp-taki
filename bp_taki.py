@@ -33,7 +33,7 @@ random.seed(0)
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # A bypass for EventSetUnify
-pattern = pattern = r"(p_\d+_(draw_card|card_\d+_\w+|announcement))|end_game"
+pattern = pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card))|end_game"
 general_player_event_set = bp.EventSet(lambda e:
     hasattr(e, 'name') and re.match(pattern, e.name) is not None
 )
@@ -45,8 +45,8 @@ all_player_1_events = bp.EventSet(lambda e: 'p_1' in e.name)
 all_player_0_except_no_more_cards = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name)
 all_player_1_except_no_more_cards = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name)
 
-all_player_0_except_no_more_cards_and_announcement = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name and not 'announcement' in e.name)
-all_player_1_except_no_more_cards_and_announcement = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name and not 'announcement' in e.name)
+all_player_0_except_no_more_cards_and_last_card = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
+all_player_1_except_no_more_cards_and_last_card = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
 
 any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 
@@ -272,7 +272,7 @@ def player_behavior(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
     # Define announce last card event
-    announcement_event = BPEvent(f"p_{index}_announcement", priority=5.0)
+    last_card_event = BPEvent(f"p_{index}_last_card", priority=5.0)
     # Add draw_card_event to the cards events(Possible actions of player)
     draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
     card_events.append(draw_card_event)
@@ -285,7 +285,7 @@ def player_behavior(index, num_of_cards=2):
             # If the only event is a single regular card, announce last card!
             card_count = count_num_of_cards(index, card_events)
             if card_count == 1:
-                event = yield bp.sync(request=announcement_event)
+                event = yield bp.sync(request=last_card_event)
 
             # If the only event left is draw_card, break and end the game.
             if list_contains_only_draw_card_event(card_events):
@@ -343,13 +343,13 @@ def is_color_or_number_card_event(event: BPEvent) -> bool:
 def enforce_turns():  # blocks moves that are not in turn
     yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
     while True:
-        last_event_p_0 = yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_announcement)
+        last_event_p_0 = yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
         if is_event_draw_card_event(0, last_event_p_0):
-            yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_announcement)
+            yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
 
-        last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_announcement)
+        last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
         if is_event_draw_card_event(1, last_event_p_1):
-            yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_announcement)
+            yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
 
 
 @bp.thread
@@ -475,6 +475,13 @@ def enforce_last_card_announcement():
             pending_announcement[player] = False
             print(f"[LAST_CARD] Player {player} no longer has 1 card - announcement no longer needed")
 
+    def handle_last_card(player):
+        if pending_announcement[player]:
+            pending_announcement[player] = False
+            print(f"[ANNOUNCE] Player {player} announced 'last card!' - penalty avoided!")
+        else:
+            print(f"[ANNOUNCE] Player {player} announced 'last card!' but no announcement was needed")
+
     def get_player_from_event(event_name):
         if event_name.startswith("p_0_"):
             return 0
@@ -490,6 +497,7 @@ def enforce_last_card_announcement():
 
         player = get_player_from_event(event.name)
         if player is None:
+            print(f"Couldn't extract player from event: {event.name}")
             continue
 
         if event.name.startswith(f"p_{player}_card"):
@@ -499,6 +507,9 @@ def enforce_last_card_announcement():
             print(f"[DRAW] Player {player} requested to draw a card.")
             deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(player))
             handle_card_draw(player, deal_event)
+
+        elif event.name == f"p_{player}_last_card":
+            handle_last_card(player)
 
 
 def init_b_program():
