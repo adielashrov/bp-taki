@@ -272,7 +272,7 @@ def player_behavior(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
     # Define announce last card event
-    last_card_event = BPEvent(f"p_{index}_last_card", priority=5.0)
+    last_card_event = BPEvent(f"p_{index}_last_card", priority=6.0)
     # Add draw_card_event to the cards events(Possible actions of player)
     draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
     card_events.append(draw_card_event)
@@ -482,6 +482,16 @@ def enforce_last_card_announcement():
         else:
             print(f"[ANNOUNCE] Player {player} announced 'last card!' but no announcement was needed")
 
+    def check_for_penalty_violation(acting_player):
+        """Check if the opponent failed to announce and should be penalized"""
+        opponent = 1 - acting_player
+
+        if pending_announcement[opponent]:
+            print(f"[PENALTY] Player {opponent} failed to announce 'last card!' - applying 4-card penalty")
+            pending_announcement[opponent] = False
+            return True
+        return False
+
     def get_player_from_event(event_name):
         if event_name.startswith("p_0_"):
             return 0
@@ -499,6 +509,11 @@ def enforce_last_card_announcement():
         if player is None:
             print(f"Couldn't extract player from event: {event.name}")
             continue
+
+        if event.name.startswith(f"p_{player}_card") or event.name == f"p_{player}_draw_card":
+            apply_penalty = check_for_penalty_violation(player)
+            if apply_penalty:
+                yield bp.sync(request=BPEvent(f"penalize_player_{1-player}", priority=5.0))
 
         if event.name.startswith(f"p_{player}_card"):
             handle_card_play(player)
