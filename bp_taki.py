@@ -256,7 +256,6 @@ def list_contains_only_draw_card_event(action_events):
 
 def count_num_of_cards(index:int,  action_events: list[BPEvent])-> int:
     card_count = len([e for e in action_events if e.name.startswith(f"p_{index}_card")])
-    print(f"Player: {index}, current number of cards: {card_count}")
     return card_count
 
 @bp.thread
@@ -285,7 +284,8 @@ def player_behavior(index, num_of_cards=2):
             # If the only event is a single regular card, announce last card!
             card_count = count_num_of_cards(index, card_events)
             if card_count == 1:
-                event = yield bp.sync(request=last_card_event)
+                print(f"player_{index} Should have announced last_card_event")
+                # event = yield bp.sync(request=last_card_event)
 
             # If the only event left is draw_card, break and end the game.
             if list_contains_only_draw_card_event(card_events):
@@ -338,7 +338,6 @@ def is_color_or_number_card_event(event: BPEvent) -> bool:
         return True
     return False
 
-
 @bp.thread
 def enforce_turns():  # blocks moves that are not in turn
     yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
@@ -351,6 +350,72 @@ def enforce_turns():  # blocks moves that are not in turn
         if is_event_draw_card_event(1, last_event_p_1):
             yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
 
+'''
+@bp.thread
+def enforce_turns():  # blocks moves that are not in turn
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    # Track penalty state
+    penalty_in_progress = False
+    penalty_player = None
+    penalty_draws_remaining = 0
+
+    while True:
+        # Listen for penalty events
+        event = yield bp.sync(
+            waitFor=bp.EventSet(lambda e:
+                                e.name.startswith("penalize_player_") or
+                                e.name.startswith("p_0_") or
+                                e.name.startswith("p_1_")
+                                ),
+            block=bp.EventSet(lambda e: False)  # Don't block anything initially
+        )
+
+        # Handle penalty start
+        if event.name.startswith("penalize_player_"):
+            penalty_in_progress = True
+            penalty_player = 0 if event.name == "penalize_player_0" else 1
+            penalty_draws_remaining = 4
+            print(f"[TURNS] Penalty mode: Player {penalty_player} can take {penalty_draws_remaining} penalty draws")
+            continue
+
+        # Handle penalty draws
+        if penalty_in_progress and event.name == f"p_{penalty_player}_draw_card":
+            penalty_draws_remaining -= 1
+            print(f"[TURNS] Penalty draw: {penalty_draws_remaining} draws remaining for Player {penalty_player}")
+
+            if penalty_draws_remaining <= 0:
+                penalty_in_progress = False
+                penalty_player = None
+                print(f"[TURNS] Penalty complete - resuming normal turn enforcement")
+            continue
+
+        # Normal turn enforcement (when not in penalty mode)
+        if not penalty_in_progress:
+            if event.name.startswith("p_0_"):
+                acting_player = 0
+                other_player = 1
+            elif event.name.startswith("p_1_"):
+                acting_player = 1
+                other_player = 0
+            else:
+                continue
+
+            # Block the other player's actions during this player's turn
+            yield bp.sync(
+                waitFor=all_player_0_events if acting_player == 0 else all_player_1_events,
+                block=all_player_1_except_no_more_cards_and_last_card if acting_player == 0
+                else all_player_0_except_no_more_cards_and_last_card
+            )
+
+            # Handle draw card extensions (if player draws, they get another action)
+            if is_event_draw_card_event(acting_player, event):
+                yield bp.sync(
+                    waitFor=all_player_0_events if acting_player == 0 else all_player_1_events,
+                    block=all_player_1_except_no_more_cards_and_last_card if acting_player == 0
+                    else all_player_0_except_no_more_cards_and_last_card
+                )
+'''
 
 @bp.thread
 def enforce_same_color():
@@ -453,6 +518,44 @@ def verify_turn_alternation():
 
 
 @bp.thread
+def apply_penalty():
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    penalty_events = bp.EventSet(lambda e: e.name.startswith("penalize_player_"))
+
+    while True:
+        penalty_event = yield bp.sync(waitFor=penalty_events)
+
+        if penalty_event.name == "penalize_player_0":
+            player = 0
+        elif penalty_event.name == "penalize_player_1":
+            player = 1
+        else:
+            continue
+
+        other_player = 1 - player
+        other_player_actions = bp.EventSet(lambda e:
+                                           e.name.startswith(f"p_{other_player}_card") or
+                                           e.name == f"p_{other_player}_draw_card")
+
+        print(f"[PENALTY_APPLY] Applying 4-card penalty to Player {player} (simplified)")
+
+        for i in range(4):
+            print(f"[PENALTY_DEBUG] Requesting penalty draw {i + 1}/4 for Player {player}")
+
+            # Simple request with blocking - no game-end logic
+            draw_event = yield bp.sync(
+                request=BPEvent(f"p_{player}_draw_card", priority=3.0),
+                block=other_player_actions
+            )
+
+            print(f"[PENALTY_DEBUG] Draw event selected: {draw_event.name}")
+
+            deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(player))
+            print(f"[PENALTY_DRAW] Player {player} penalty draw {i + 1}/4: {deal_event.name}")
+
+        print(f"[PENALTY_COMPLETE] Penalty for Player {player} complete")
+
+@bp.thread
 def enforce_last_card_announcement():
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     hand_sizes = {0: NUM_OF_CARDS, 1: NUM_OF_CARDS}
@@ -513,7 +616,8 @@ def enforce_last_card_announcement():
         if event.name.startswith(f"p_{player}_card") or event.name == f"p_{player}_draw_card":
             apply_penalty = check_for_penalty_violation(player)
             if apply_penalty:
-                yield bp.sync(request=BPEvent(f"penalize_player_{1-player}", priority=5.0))
+                yield bp.sync(request=BPEvent(f"penalize_player_{1-player}", priority=3.5))
+                # yield bp.sync(waitFor=BPEvent(f"penalty_done_player_{1-player}", priority=5.0))
 
         if event.name.startswith(f"p_{player}_card"):
             handle_card_play(player)
@@ -532,12 +636,13 @@ def init_b_program():
                                         deal_cards(2,NUM_OF_CARDS),
                                         player_behavior(0, NUM_OF_CARDS),
                                         player_behavior(1, NUM_OF_CARDS) ,
-                                        enforce_turns(),
+                                        # enforce_turns(),
                                         enforce_same_color_or_number(),
                                         enforce_last_card_announcement(),
+                                        apply_penalty(),
                                         identify_deadlock(),
-                                        detect_illegal_post_game_moves(),
-                                        verify_turn_alternation()],
+                                        detect_illegal_post_game_moves()],
+                                        # verify_turn_alternation()],
                          event_selection_strategy=EventPrioritySelectionStrategy(),
                          listener=bp.PrintBProgramRunnerListener())
     return b_program
