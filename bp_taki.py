@@ -283,8 +283,8 @@ def player_behavior(index, num_of_cards=2):
 
             # If the only event is a single regular card, announce last card!
             card_count = count_num_of_cards(index, card_events)
-            if card_count == 1:
-                print(f"player_{index} Should have announced last_card_event")
+            # if card_count == 1:
+                # print(f"player_{index} Should have announced last_card_event")
                 # event = yield bp.sync(request=last_card_event)
 
             # If the only event left is draw_card, break and end the game.
@@ -309,7 +309,7 @@ def extract_card_color(event: BPEvent) -> str:
 
 
 def extract_card_number(event: BPEvent) -> str:
-    print(f"extract_card_color event: {event}")
+    # print(f"extract_card_color event: {event}")
     card_str_index = event.name.find("card")
     card_number = event.name[card_str_index + 5:card_str_index+6]
     return card_number
@@ -530,6 +530,7 @@ def apply_penalty():
         elif penalty_event.name == "penalize_player_1":
             player = 1
         else:
+            print(f"[PENALTY_THREAD] WARNING: Unknown penalty event {penalty_event.name}")
             continue
 
         other_player = 1 - player
@@ -540,7 +541,9 @@ def apply_penalty():
         print(f"[PENALTY_APPLY] Applying 4-card penalty to Player {player} (simplified)")
 
         for i in range(4):
-            print(f"[PENALTY_DEBUG] Requesting penalty draw {i + 1}/4 for Player {player}")
+            # Add just this one debug line before the problematic second request
+            if i == 1:  # Only debug the second penalty draw
+                print(f"[DEBUG_DEADLOCK] About to request penalty draw 2/4 for Player {player}")
 
             # Simple request with blocking - no game-end logic
             draw_event = yield bp.sync(
@@ -563,20 +566,19 @@ def enforce_last_card_announcement():
 
     def handle_card_play(player):
         hand_sizes[player] -= 1
-        print(f"[HAND_SIZE] Player {player} played a card. New hand size: {hand_sizes[player]}")
+        # print(f"[HAND_SIZE] Player {player} played a card. New hand size: {hand_sizes[player]}")
 
         if hand_sizes[player] == 1:
             pending_announcement[player] = True
-            print(f"[LAST_CARD] Player {player} has 1 card and must announce 'last card!'")
-
+            # print(f"[LAST_CARD] Player {player} has 1 card and must announce 'last card!'")
 
     def handle_card_draw(player, deal_event):
         hand_sizes[player] += 1
-        print(f"[HAND_SIZE] Player {player} drew a card ({deal_event.name}). New hand size: {hand_sizes[player]}")
+        # print(f"[HAND_SIZE] Player {player} drew a card ({deal_event.name}). New hand size: {hand_sizes[player]}")
 
         if hand_sizes[player] != 1 and pending_announcement[player]:
             pending_announcement[player] = False
-            print(f"[LAST_CARD] Player {player} no longer has 1 card - announcement no longer needed")
+            # print(f"[LAST_CARD] Player {player} no longer has 1 card - announcement no longer needed")
 
     def handle_last_card(player):
         if pending_announcement[player]:
@@ -616,14 +618,12 @@ def enforce_last_card_announcement():
         if event.name.startswith(f"p_{player}_card") or event.name == f"p_{player}_draw_card":
             apply_penalty = check_for_penalty_violation(player)
             if apply_penalty:
-                yield bp.sync(request=BPEvent(f"penalize_player_{1-player}", priority=3.5))
-                # yield bp.sync(waitFor=BPEvent(f"penalty_done_player_{1-player}", priority=5.0))
+                yield bp.sync(request=BPEvent(f"penalize_player_{1 - player}", priority=3.5))
 
         if event.name.startswith(f"p_{player}_card"):
             handle_card_play(player)
 
         elif event.name == f"p_{player}_draw_card":
-            print(f"[DRAW] Player {player} requested to draw a card.")
             deal_event = yield bp.sync(waitFor=DealCardsPlayerEventSet(player))
             handle_card_draw(player, deal_event)
 
@@ -636,10 +636,10 @@ def init_b_program():
                                         deal_cards(2,NUM_OF_CARDS),
                                         player_behavior(0, NUM_OF_CARDS),
                                         player_behavior(1, NUM_OF_CARDS) ,
-                                        # enforce_turns(),
+                                        enforce_turns(),
                                         enforce_same_color_or_number(),
                                         enforce_last_card_announcement(),
-                                        apply_penalty(),
+                                        # apply_penalty(),
                                         identify_deadlock(),
                                         detect_illegal_post_game_moves()],
                                         # verify_turn_alternation()],
