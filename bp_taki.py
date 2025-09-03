@@ -1,3 +1,5 @@
+from typing import Union
+
 import bppy as bp
 from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
 from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
@@ -33,7 +35,7 @@ random.seed(0)
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # A bypass for EventSetUnify
-pattern = pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card))|end_game"
+pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+))|end_game"
 general_player_event_set = bp.EventSet(lambda e:
     hasattr(e, 'name') and re.match(pattern, e.name) is not None
 )
@@ -55,6 +57,10 @@ def is_event_draw_card_event(player_index, event):
         return True
     return False
 
+def is_event_stop_card_event(player_index, event):
+    if event.name.startswith(f"p_{player_index}_stop"):
+        return True
+    return False
 
 def create_cards_from_same_color_event_set(color):
     def cards_from_the_same_color(event):
@@ -185,6 +191,7 @@ def create_and_shuffle_cards():
                  BPEvent(name="card_7_red", data={}, priority=10.0)]
     '''
     # option 3: Three colors 4  numbers = 12 cards in total:
+    '''
     all_cards = [BPEvent(name="card_1_blue", data={}, priority=10.0),
                  BPEvent(name="card_4_green", data={}, priority=10.0),
                  BPEvent(name="card_4_red", data={}, priority=10.0),
@@ -196,6 +203,23 @@ def create_and_shuffle_cards():
                  BPEvent(name="card_3_red", data={}, priority=10.0),
                  BPEvent(name="card_1_green", data={}, priority=10.0),
                  BPEvent(name="card_1_red", data={}, priority=10.0),
+                 BPEvent(name="card_3_blue", data={}, priority=10.0)]
+'''
+    # option 4: Three colors 4  numbers = 12 cards in total + 3 stop cards
+    all_cards = [BPEvent(name="card_3_red", data={}, priority=10.0),
+                 BPEvent(name="card_5_blue", data={}, priority=10.0),
+                 BPEvent(name="card_1_red", data={}, priority=10.0),
+                 BPEvent(name="stop_red", data={}, priority=10.0),
+                 BPEvent(name="card_4_blue", data={}, priority=10.0),
+                 BPEvent(name="card_1_blue", data={}, priority=10.0),
+                 BPEvent(name="card_5_green", data={}, priority=10.0),
+                 BPEvent(name="card_3_green", data={}, priority=10.0),
+                 BPEvent(name="stop_blue", data={}, priority=10.0),
+                 BPEvent(name="card_4_red", data={}, priority=10.0),
+                 BPEvent(name="card_1_green", data={}, priority=10.0),
+                 BPEvent(name="card_5_red", data={}, priority=10.0),
+                 BPEvent(name="stop_green", data={}, priority=10.0),
+                 BPEvent(name="card_4_green", data={}, priority=10.0),
                  BPEvent(name="card_3_blue", data={}, priority=10.0)]
 
     return all_cards
@@ -278,7 +302,7 @@ def player_behavior(index, num_of_cards=2):
 
     while True:
         event = yield bp.sync(waitFor=general_player_event_set, request=card_events)
-        if event.name.startswith(f"p_{index}_card"):
+        if event.name.startswith(f"p_{index}_card") or event.name.startswith(f"p_{index}_stop"):
             card_events.remove(event)
 
             # If the only event is a single regular card, announce last card!
@@ -315,14 +339,19 @@ def extract_card_number(event: BPEvent) -> str:
     return card_number
 
 
-def  extract_card_color_and_number(event: BPEvent) -> tuple[str,str]:
+def  extract_card_color_and_number(event: BPEvent) -> Union[tuple[str, str], tuple[str, None], tuple[None, None]]:
     card_str_index = event.name.find("card")
     if card_str_index != -1:
         card_color = event.name[card_str_index+7:]
         card_number = event.name[card_str_index + 5:card_str_index + 6]
         return card_color,  card_number
     else:
-        return None, None
+        stop_str_index = event.name.find("stop")
+        if stop_str_index != -1:
+            card_color = event.name[stop_str_index+5:]
+            return card_color, None
+        else:
+            return None, None
 
 
 def is_color_card_event(event: BPEvent) -> bool:
@@ -338,6 +367,7 @@ def is_color_or_number_card_event(event: BPEvent) -> bool:
         return True
     return False
 
+'''
 @bp.thread
 def enforce_turns():  # blocks moves that are not in turn
     yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
@@ -347,6 +377,28 @@ def enforce_turns():  # blocks moves that are not in turn
             yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
 
         last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
+        if is_event_draw_card_event(1, last_event_p_1):
+            yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
+'''
+
+# Updated enforce_turns b-thread that addresses the Stop action card
+@bp.thread
+def enforce_turns():
+    yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
+    while True:
+        while True:
+            last_event_p_0 = yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
+            if not is_event_stop_card_event(0, last_event_p_0):
+                break
+
+        if is_event_draw_card_event(0, last_event_p_0):
+            yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
+
+        while True:
+            last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
+            if not is_event_stop_card_event(1, last_event_p_1):
+                break
+
         if is_event_draw_card_event(1, last_event_p_1):
             yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
 
@@ -638,7 +690,7 @@ def init_b_program():
                                         player_behavior(1, NUM_OF_CARDS) ,
                                         enforce_turns(),
                                         enforce_same_color_or_number(),
-                                        enforce_last_card_announcement(),
+                                        # enforce_last_card_announcement(),
                                         # apply_penalty(),
                                         identify_deadlock(),
                                         detect_illegal_post_game_moves()],
