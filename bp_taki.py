@@ -314,9 +314,12 @@ def count_num_of_cards(index: int, action_events: list[BPEvent]) -> int:
 def request_post_action_for_regular_cards(index):
     while True:
         last_event = yield bp.sync(waitFor=general_player_event_set)
-        if last_event.name.startswith(f"p_{index}_card") or last_event.name.startswith(f"p_{index}_draw_card"):
+        if (last_event.name.startswith(f"p_{index}_card") or
+                last_event.name.startswith(f"p_{index}_draw_card") or
+                last_event.name.startswith(f"p_{index}_stop")):
             event_name = "post_action_" + last_event.name
-            yield bp.sync(request=BPEvent(event_name, priority=10.0), block=general_player_event_set)
+            yield bp.sync( request=BPEvent(event_name, priority=10.0),
+                                    block=general_player_event_set)
 
 
 @bp.thread
@@ -413,7 +416,7 @@ def enforce_turns():
     while True:
         yield bp.sync(waitFor=all_player_events(player),
                       block=all_player_except_no_more_cards_and_last_card(1 - player))
-        last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here
+        last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here +Block here can cause deadlocks!
         if f'p_{player}_draw_card' in last_event.name:
             yield bp.sync(waitFor=DealCardsPlayerEventSet(player),block=bp.EventSet(lambda e: f'deal_p_{player}' not in e.name))  # pattern and here
         player = 1 - player
