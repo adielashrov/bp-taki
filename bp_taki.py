@@ -126,6 +126,8 @@ def create_cards_from_different_number_or_color_event_set(card_color, card_numbe
     if card_color in colors and card_number in numbers:
         colors.remove(card_color)
         numbers.remove(card_number)
+    elif card_color in colors and card_number is None: # stop card
+        colors.remove(card_color)
     else:
         raise Exception(f"Wrong parameter to "
                         f"create_cards_from_different_number_or_"
@@ -385,6 +387,22 @@ def extract_card_number(event: BPEvent) -> str:
 
 
 def extract_card_color_and_number(event: BPEvent) -> Union[tuple[str, str], tuple[str, None], tuple[None, None]]:
+    """
+    Extracts the color and number from a card or stop event name.
+
+    Args:
+        event (BPEvent): The event whose name encodes card or stop information.
+
+    Returns:
+        tuple[str, str]: (color, number) if the event is a card event.
+        tuple[str, None]: (color, None) if the event is a stop event.
+        tuple[None, None]: (None, None) if neither card nor stop information is found.
+
+    Example:
+        - For event.name == "card_5_blue", returns ("blue", "5")
+        - For event.name == "stop_red", returns ("red", None)
+        - For other event names, returns (None, None)
+    """
     card_str_index = event.name.find("card")
     if card_str_index != -1:
         card_color = event.name[card_str_index + 7:]
@@ -407,9 +425,16 @@ def is_color_card_event(event: BPEvent) -> bool:
 
 
 def is_color_or_number_card_event(event: BPEvent) -> bool:
+    # Regular numbered cards
     pattern = r"p_\d+_card_\d+_\w+"
     if re.match(pattern, event.name) is not None:
         return True
+
+    # Stop cards
+    stop_pattern = r"p_\d+_stop_\w+"
+    if re.match(stop_pattern, event.name) is not None:
+        return True
+
     return False
 
 
@@ -421,8 +446,10 @@ def enforce_turns():
         yield bp.sync(waitFor=all_player_events(player),
                       block=all_player_except_no_more_cards_and_last_card(1 - player))
         last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here +Block here can cause deadlocks!
-        if f'p_{player}_draw_card' in last_event.name:
+        if f'p_{player}_draw_card' in last_event.name: # if the player requested to draw a card, wait for a deal_card event
             yield bp.sync(waitFor=DealCardsPlayerEventSet(player),block=bp.EventSet(lambda e: f'deal_p_{player}' not in e.name))  # pattern and here
+        if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
+            continue
         player = 1 - player
 
 
@@ -581,6 +608,8 @@ def enforce_same_color_or_number():
             card_color, card_number = extract_card_color_and_number(event=last_event)
             different_colors_or_numbers_event_set = create_cards_from_different_number_or_color_event_set(card_color,
                                                                                                           card_number)
+        # else:
+        #    print(f"[enforce_same_color_or_number] Ignored event (not a color/number/stop card): {last_event.name}")
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_numbers_event_set)
 
 
