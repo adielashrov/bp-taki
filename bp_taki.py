@@ -216,7 +216,7 @@ def create_and_shuffle_cards():
                  BPEvent(name="card_7_red", data={}, priority=10.0)]
     '''
     # option 3: Three colors 4  numbers = 12 cards in total:
-
+    '''
     all_cards = [BPEvent(name="card_1_blue", data={}, priority=10.0),
                  BPEvent(name="card_4_green", data={}, priority=10.0),
                  BPEvent(name="card_4_red", data={}, priority=10.0),
@@ -229,24 +229,28 @@ def create_and_shuffle_cards():
                  BPEvent(name="card_1_green", data={}, priority=10.0),
                  BPEvent(name="card_1_red", data={}, priority=10.0),
                  BPEvent(name="card_3_blue", data={}, priority=10.0)]
-    return all_cards
-'''# option 4: Three colors 4  numbers = 12 cards in total + 3 stop cards
+    return all_cards'''
+    # option 4: Three colors 4  numbers = 12 cards in total + 3 stop cards
     all_cards = [BPEvent(name="card_3_red", data={}, priority=10.0),
+                 BPEvent(name="stop_red", data={}, priority=9.5),
                  BPEvent(name="card_5_blue", data={}, priority=10.0),
+                 BPEvent(name="stop_blue", data={}, priority=9.5),
                  BPEvent(name="card_1_red", data={}, priority=10.0),
-                 BPEvent(name="stop_red", data={}, priority=10.0),
                  BPEvent(name="card_4_blue", data={}, priority=10.0),
-                 BPEvent(name="card_1_blue", data={}, priority=10.0),
+                 BPEvent(name="stop_green", data={}, priority=9.5),
                  BPEvent(name="card_5_green", data={}, priority=10.0),
+                 BPEvent(name="card_1_blue", data={}, priority=10.0),
                  BPEvent(name="card_3_green", data={}, priority=10.0),
-                 BPEvent(name="stop_blue", data={}, priority=10.0),
                  BPEvent(name="card_4_red", data={}, priority=10.0),
                  BPEvent(name="card_1_green", data={}, priority=10.0),
+                 BPEvent(name="stop_red", data={}, priority=9.5),
                  BPEvent(name="card_5_red", data={}, priority=10.0),
-                 BPEvent(name="stop_green", data={}, priority=10.0),
                  BPEvent(name="card_4_green", data={}, priority=10.0),
-                 BPEvent(name="card_3_blue", data={}, priority=10.0)]'''
+                 BPEvent(name="stop_green", data={}, priority=9.5),
+                 BPEvent(name="card_3_blue", data={}, priority=10.0),
+                 BPEvent(name="stop_blue", data={}, priority=9.5)]
 
+    return all_cards
 
 
 @bp.thread
@@ -273,7 +277,7 @@ def deal_cards(num_of_players=2, num_of_cards=2):
     for i in range(num_of_players):
         for j in range(num_of_cards):
             card_event = cards.pop()
-            deal_player_card_event = BPEvent("deal_p_" + str(i) + "_" + card_event.name, priority=10.0)
+            deal_player_card_event = BPEvent("deal_p_" + str(i) + "_" + card_event.name, priority=card_event.priority)
             yield bp.sync(request=deal_player_card_event)
     yield bp.sync(request=BPEvent("finished_dealing_cards_to_players", priority=10.0))
 
@@ -318,7 +322,7 @@ def request_post_action_for_regular_cards(index):
                 last_event.name.startswith(f"p_{index}_draw_card") or
                 last_event.name.startswith(f"p_{index}_stop")):
             event_name = "post_action_" + last_event.name
-            yield bp.sync( request=BPEvent(event_name, priority=10.0),
+            yield bp.sync( request=BPEvent(event_name, priority=last_event.priority),
                                     block=general_player_event_set)
 
 
@@ -330,7 +334,7 @@ def player_behavior(index, num_of_cards=2):
     for i in range(num_of_cards):
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
         card_name = remove_deal_prefix_from_event(deal_card_event)
-        card_events.append(BPEvent(card_name, priority=10.0))
+        card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
 
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
@@ -361,7 +365,7 @@ def player_behavior(index, num_of_cards=2):
             # deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_from_event(deal_card_event)
-            card_events.append(BPEvent(card_name, priority=10.0))
+            card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
         # If the other player ended the game.
         if event.name.startswith(f"end_game"):  # similar to breakupon.
             break
