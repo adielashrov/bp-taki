@@ -75,4 +75,4 @@ class EventPrioritySelectionStrategy(SimpleEventSelectionStrategy):
         if unique_events:
             return self.filter_by_priority(unique_events)
         else:
-            return None
+            return [] # return empty list if there are no events to select.
