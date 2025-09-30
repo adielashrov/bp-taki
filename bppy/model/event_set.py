@@ -42,6 +42,8 @@ class EventSet:
         return hash(self.__key())
 
     def __eq__(self, other):
+        if not isinstance(other, EventSet):
+            return False
         return self.__key() == other.__key()
 
     def __str__(self):
