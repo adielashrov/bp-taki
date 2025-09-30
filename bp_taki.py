@@ -190,67 +190,24 @@ def create_and_shuffle_cards():
 
 
 def create_and_shuffle_cards():
-    # option 2:
-    '''
-    all_cards = [BPEvent(name="card_8_red", data={}, priority=10.0),
-                 BPEvent(name="card_1_blue", data={}, priority=10.0),
-                 BPEvent(name="card_9_green", data={}, priority=10.0),
-                 BPEvent(name="card_4_green", data={}, priority=10.0),
-                 BPEvent(name="card_8_blue", data={}, priority=10.0),
-                 BPEvent(name="card_7_blue", data={}, priority=10.0),
-                 BPEvent(name="card_9_blue", data={}, priority=10.0),
-                 BPEvent(name="card_4_red", data={}, priority=10.0),
-                 BPEvent(name="card_8_green", data={}, priority=10.0),
-                 BPEvent(name="card_6_green", data={}, priority=10.0),
-                 BPEvent(name="card_6_blue", data={}, priority=10.0),
-                 BPEvent(name="card_4_blue", data={}, priority=10.0),
-                 BPEvent(name="card_7_green", data={}, priority=10.0),
-                 BPEvent(name="card_5_blue", data={}, priority=10.0),
-                 BPEvent(name="card_3_green", data={}, priority=10.0),
-                 BPEvent(name="card_5_red", data={}, priority=10.0),
-                 BPEvent(name="card_5_green", data={}, priority=10.0),
-                 BPEvent(name="card_3_red", data={}, priority=10.0),
-                 BPEvent(name="card_6_red", data={}, priority=10.0),
-                 BPEvent(name="card_9_red", data={}, priority=10.0),
-                 BPEvent(name="card_1_green", data={}, priority=10.0),
-                 BPEvent(name="card_1_red", data={}, priority=10.0),
-                 BPEvent(name="card_3_blue", data={}, priority=10.0),
-                 BPEvent(name="card_7_red", data={}, priority=10.0)]
-    '''
-    # option 3: Three colors 4  numbers = 12 cards in total:
-    '''
-    all_cards = [BPEvent(name="card_1_blue", data={}, priority=10.0),
-                 BPEvent(name="card_4_green", data={}, priority=10.0),
-                 BPEvent(name="card_4_red", data={}, priority=10.0),
-                 BPEvent(name="card_4_blue", data={}, priority=10.0),
-                 BPEvent(name="card_5_blue", data={}, priority=10.0),
-                 BPEvent(name="card_3_green", data={}, priority=10.0),
-                 BPEvent(name="card_5_red", data={}, priority=10.0),
-                 BPEvent(name="card_5_green", data={}, priority=10.0),
-                 BPEvent(name="card_3_red", data={}, priority=10.0),
-                 BPEvent(name="card_1_green", data={}, priority=10.0),
-                 BPEvent(name="card_1_red", data={}, priority=10.0),
-                 BPEvent(name="card_3_blue", data={}, priority=10.0)]
-    return all_cards'''
-    # option 4: Three colors 4  numbers = 12 cards in total + 3 stop cards
-    all_cards = [BPEvent(name="card_3_red", data={}, priority=10.0),
-                 BPEvent(name="stop_red", data={}, priority=9.5),
-                 BPEvent(name="card_5_blue", data={}, priority=10.0),
-                 BPEvent(name="stop_blue", data={}, priority=9.5),
-                 BPEvent(name="card_1_red", data={}, priority=10.0),
-                 BPEvent(name="card_4_blue", data={}, priority=10.0),
-                 BPEvent(name="stop_green", data={}, priority=9.5),
-                 BPEvent(name="card_5_green", data={}, priority=10.0),
-                 BPEvent(name="card_1_blue", data={}, priority=10.0),
-                 BPEvent(name="card_3_green", data={}, priority=10.0),
-                 BPEvent(name="card_4_red", data={}, priority=10.0),
-                 BPEvent(name="card_1_green", data={}, priority=10.0),
-                 BPEvent(name="stop_red", data={}, priority=9.5),
-                 BPEvent(name="card_5_red", data={}, priority=10.0),
-                 BPEvent(name="card_4_green", data={}, priority=10.0),
-                 BPEvent(name="stop_green", data={}, priority=9.5),
-                 BPEvent(name="card_3_blue", data={}, priority=10.0),
-                 BPEvent(name="stop_blue", data={}, priority=9.5)]
+
+    all_cards = [BPEvent(name="stop_red", data={}, priority=10.0),
+         BPEvent(name="card_5_blue", data={}, priority=10.0),
+         BPEvent(name="stop_blue", data={}, priority=10.0),
+         BPEvent(name="card_1_red", data={}, priority=10.0),
+         BPEvent(name="card_4_blue", data={}, priority=10.0),
+         BPEvent(name="stop_green", data={}, priority=10.0),
+         BPEvent(name="card_5_green", data={}, priority=10.0),
+         BPEvent(name="card_1_blue", data={}, priority=10.0),
+         BPEvent(name="card_3_green", data={}, priority=10.0),
+         BPEvent(name="card_4_red", data={}, priority=10.0),
+         BPEvent(name="card_1_green", data={}, priority=10.0),
+         BPEvent(name="stop_red", data={}, priority=10.0),
+         BPEvent(name="card_5_red", data={}, priority=10.0),
+         BPEvent(name="card_4_green", data={}, priority=10.0),
+         BPEvent(name="stop_green", data={}, priority=10.0),
+         BPEvent(name="card_3_blue", data={}, priority=10.0),
+         BPEvent(name="stop_blue", data={}, priority=10.0)]
 
     return all_cards
 
