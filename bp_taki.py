@@ -120,33 +120,35 @@ def create_cards_from_different_number_event_set(number):
     return bp.EventSet(cards_from_the_different_number)
 
 
-def create_cards_from_different_number_or_color_event_set(card_color, card_number):
+def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     colors = ["blue", "red", "green"]
-    numbers = ["1", "3", "4", "5", "6", "7", "8", "9"]
-    if card_color in colors and card_number in numbers:
+    types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP"]
+    if card_color in colors and card_type in types:
         colors.remove(card_color)
-        numbers.remove(card_number)
-    elif card_color in colors and card_number is None: # stop card
+        types.remove(card_type)
+    elif card_color in colors and card_type is None: # stop card
+        print("We shouldn't reach this case, since we now have a type named STOP")
         colors.remove(card_color)
     else:
         raise Exception(f"Wrong parameter to "
-                        f"create_cards_from_different_number_or_"
-                        f"color_event_set: {card_color, card_number}")
+                        f"create_cards_from_different_color_or_type_event_set"
+                        f"{card_color, card_type}")
 
-    def cards_from_the_different_color_or_number(event):
+    def cards_from_the_different_color_or_type(event):
+        # TODO: add documentation to this method
         # Edge case, we don't want to block events from different
         # colors/number if they are a new card being dealt.
         if event.name.startswith("deal_p_"):
             return False
-        t_card_color, t_card_number = extract_card_color_and_number(event)
-        if t_card_color == card_color or t_card_number == card_number:
+        t_card_color, t_card_type = extract_card_color_and_type(event)
+        if t_card_color == card_color or t_card_type == card_type:
             return False
-        elif t_card_color in colors or t_card_number in numbers:
+        elif t_card_color in colors or t_card_type in types: #Should we block "STOP" events?
             return True
         else:  # default return false.
             return False
 
-    return bp.EventSet(cards_from_the_different_color_or_number)
+    return bp.EventSet(cards_from_the_different_color_or_type)
 
 
 class PlayerEventSet(bp.EventSet):
@@ -316,7 +318,7 @@ def player_behavior(index, num_of_cards=2):
 
             # If the only event left is draw_card, break and end the game.
             if list_contains_only_draw_card_event(card_events):
-                yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards ", priority=8.0))
+                yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
                 break
         # If there is a draw card event, wait for a card to be dealt.
         if event.name.startswith(f"p_{index}_draw_card"):
@@ -343,7 +345,7 @@ def extract_card_number(event: BPEvent) -> str:
     return card_number
 
 
-def extract_card_color_and_number(event: BPEvent) -> Union[tuple[str, str], tuple[str, None], tuple[None, None]]:
+def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[None, None]]:
     """
     Extracts the color and number from a card or stop event name.
 
@@ -357,7 +359,7 @@ def extract_card_color_and_number(event: BPEvent) -> Union[tuple[str, str], tupl
 
     Example:
         - For event.name == "card_5_blue", returns ("blue", "5")
-        - For event.name == "stop_red", returns ("red", None)
+        - For event.name == "stop_red", returns ("red", "STOP")
         - For other event names, returns (None, None)
     """
     card_str_index = event.name.find("card")
@@ -369,7 +371,7 @@ def extract_card_color_and_number(event: BPEvent) -> Union[tuple[str, str], tupl
         stop_str_index = event.name.find("stop")
         if stop_str_index != -1:
             card_color = event.name[stop_str_index + 5:]
-            return card_color, None
+            return card_color, "STOP"
         else:
             return None, None
 
@@ -381,7 +383,7 @@ def is_color_card_event(event: BPEvent) -> bool:
     return False
 
 
-def is_color_or_number_card_event(event: BPEvent) -> bool:
+def is_color_or_type_card_event(event: BPEvent) -> bool:
     # Regular numbered cards
     pattern = r"p_\d+_card_\d+_\w+"
     if re.match(pattern, event.name) is not None:
@@ -532,6 +534,7 @@ def enforce_same_color():
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
 
 
+# This b-thread is currently not used in the b-program.
 @bp.thread
 def enforce_same_number():
     yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
@@ -550,24 +553,24 @@ def enforce_same_number():
 
 
 @bp.thread
-def enforce_same_color_or_number():
+def enforce_same_color_or_type():
     yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     last_event = yield bp.sync(waitFor=leading_card_event_set)
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-    card_color, card_number = extract_card_color_and_number(event=last_event)
-    different_colors_or_numbers_event_set = create_cards_from_different_number_or_color_event_set(card_color,
-                                                                                                  card_number)
-    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_numbers_event_set)
+    card_color, card_type = extract_card_color_and_type(event=last_event)
+    different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
+                                                                                              card_type)
+    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
     while True:
-        if is_color_or_number_card_event(last_event):
-            card_color, card_number = extract_card_color_and_number(event=last_event)
-            different_colors_or_numbers_event_set = create_cards_from_different_number_or_color_event_set(card_color,
-                                                                                                          card_number)
+        if is_color_or_type_card_event(last_event):
+            card_color, card_type = extract_card_color_and_type(event=last_event)
+            different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
+                                                                                                      card_type)
         # else:
         #    print(f"[enforce_same_color_or_number] Ignored event (not a color/number/stop card): {last_event.name}")
-        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_numbers_event_set)
+        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
 
 @bp.thread
@@ -741,7 +744,7 @@ def init_b_program():
                                       request_post_action_for_regular_cards(0),
                                       request_post_action_for_regular_cards(1),
                                       enforce_turns(),
-                                      enforce_same_color_or_number(),
+                                      enforce_same_color_or_type(),
                                       # enforce_last_card_announcement(),
                                       # apply_penalty(),
                                       identify_deadlock()],
