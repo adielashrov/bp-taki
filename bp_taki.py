@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 import bppy as bp
 from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
@@ -35,7 +35,7 @@ random.seed(0)
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # A bypass for EventSetUnify
-pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+))|end_game"
+pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+))|end_game"
 general_player_event_set = bp.EventSet(lambda e:
                                        hasattr(e, 'name') and re.match(pattern, e.name) is not None
                                        )
@@ -122,7 +122,7 @@ def create_cards_from_different_number_event_set(number):
 
 def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     colors = ["blue", "red", "green"]
-    types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP"]
+    types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP", "PLUS_2"]
     if card_color in colors and card_type in types:
         colors.remove(card_color)
         types.remove(card_type)
@@ -197,22 +197,35 @@ def create_and_shuffle_cards():
          BPEvent(name="card_5_blue", data={}, priority=10.0),
          BPEvent(name="stop_blue", data={}, priority=10.0),
          BPEvent(name="card_1_red", data={}, priority=10.0),
+         BPEvent(name="plus_2_red", data={}, priority=10.0),
          BPEvent(name="card_4_blue", data={}, priority=10.0),
          BPEvent(name="stop_green", data={}, priority=10.0),
          BPEvent(name="card_5_green", data={}, priority=10.0),
+         BPEvent(name="plus_2_green", data={}, priority=10.0),
          BPEvent(name="card_1_blue", data={}, priority=10.0),
          BPEvent(name="card_3_green", data={}, priority=10.0),
-         BPEvent(name="card_4_red", data={}, priority=10.0),
          BPEvent(name="card_1_green", data={}, priority=10.0),
+         BPEvent(name="card_4_red", data={}, priority=10.0),
          BPEvent(name="stop_red", data={}, priority=10.0),
+         BPEvent(name="plus_2_blue", data={}, priority=10.0),
          BPEvent(name="card_5_red", data={}, priority=10.0),
          BPEvent(name="card_4_green", data={}, priority=10.0),
          BPEvent(name="stop_green", data={}, priority=10.0),
          BPEvent(name="card_3_blue", data={}, priority=10.0),
-         BPEvent(name="stop_blue", data={}, priority=10.0)]
+         BPEvent(name="stop_blue", data={}, priority=10.0),
+         BPEvent(name="plus_2_red", data={}, priority=10.0)]
 
     return all_cards
 
+def is_plus_2_card_event(event: BPEvent) -> bool:
+    """Check if event is a Plus 2 card"""
+    return "plus_2" in event.name
+
+def extract_plus_2_color(event: BPEvent) -> Optional[str]:
+    """Extract color from Plus 2 card event"""
+    if "plus_2" in event.name:
+        return event.name.split("_")[-1]  # returns "red", "blue", or "green"
+    return None
 
 @bp.thread
 def game_manager():
@@ -281,7 +294,8 @@ def request_post_action_for_regular_cards(index):
         last_event = yield bp.sync(waitFor=general_player_event_set)
         if (last_event.name.startswith(f"p_{index}_card") or
                 last_event.name.startswith(f"p_{index}_draw_card") or
-                last_event.name.startswith(f"p_{index}_stop")):
+                last_event.name.startswith(f"p_{index}_stop") or
+                last_event.name.startswith(f"p_{index}_plus_2")):
             event_name = "post_action_" + last_event.name
             yield bp.sync( request=BPEvent(event_name, priority=last_event.priority),
                                     block=general_player_event_set)
@@ -307,7 +321,9 @@ def player_behavior(index, num_of_cards=2):
 
     while True:
         event = yield bp.sync(waitFor=general_player_event_set, request=card_events)
-        if event.name.startswith(f"p_{index}_card") or event.name.startswith(f"p_{index}_stop"):
+        if (event.name.startswith(f"p_{index}_card") or
+            event.name.startswith(f"p_{index}_stop") or
+            event.name.startswith(f"p_{index}_plus_2")):
             card_events.remove(event)
 
             # If the only event is a single regular card, announce last card!
@@ -360,6 +376,7 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
     Example:
         - For event.name == "card_5_blue", returns ("blue", "5")
         - For event.name == "stop_red", returns ("red", "STOP")
+        - For event.name == "plus_2_red", returns ("red", "PLUS_2")
         - For other event names, returns (None, None)
     """
     card_str_index = event.name.find("card")
@@ -373,7 +390,12 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
             card_color = event.name[stop_str_index + 5:]
             return card_color, "STOP"
         else:
-            return None, None
+            plus_2_str_index = event.name.find("plus_2")
+            if plus_2_str_index != -1:
+                card_color = event.name[plus_2_str_index + 7:]
+                return card_color, "PLUS_2"
+            else:
+                return None, None
 
 
 def is_color_card_event(event: BPEvent) -> bool:
@@ -394,6 +416,12 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
     if re.match(stop_pattern, event.name) is not None:
         return True
 
+    # Plus 2 cards
+    plus_2_pattern = r"p_\d+_plus_2_\w+"
+    if re.match(plus_2_pattern, event.name) is not None:
+        print("[is_color_or_type_card_event]: Plus 2 card detected")
+        return True
+
     return False
 
 
@@ -405,8 +433,14 @@ def enforce_turns():
         yield bp.sync(waitFor=all_player_events(player),
                       block=all_player_except_no_more_cards_and_last_card(1 - player))
         last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here +Block here can cause deadlocks!
+
         if f'p_{player}_draw_card' in last_event.name: # if the player requested to draw a card, wait for a deal_card event
             yield bp.sync(waitFor=DealCardsPlayerEventSet(player),block=bp.EventSet(lambda e: f'deal_p_{player}' not in e.name))  # pattern and here
+
+        if is_plus_2_card_event(last_event):
+            print("[enforce_turns] Plus 2 card played player by player:", player)
+            pass
+
         if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
             continue
         player = 1 - player
