@@ -31,7 +31,7 @@ all_events = [
 ]
 
 # Control the randomness of card dealing
-random.seed(1)
+random.seed(7)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
@@ -264,6 +264,14 @@ def create_deal_events(card_events_list):
 
     return deal_cards_events
 
+# A regular card is a card with a number (1-9) and a color (red, blue, green).
+# a possible input event to this method is deal_p_card_5_blue
+def is_regular_card(event: BPEvent) -> bool:
+    pattern = r"deal_p_card_\d+_\w+"
+    if re.match(pattern, event.name) is not None:
+        return True
+    return False
+
 @bp.thread
 def deal_cards(num_of_players=2, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
@@ -278,7 +286,12 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
     # Deal the leading card
     yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
-    last_event = yield bp.sync(request=deal_cards_events)  # possible pattern here?
+
+    # Filter to only regular numbered cards
+    regular_cards = [card for card in deal_cards_events
+                     if is_regular_card(card)]
+    # We want that the leading card will be a regular card.
+    last_event = yield bp.sync(request=regular_cards)  # possible pattern here?
     deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent(f"leading_{last_event.name}", priority=10.0))
     yield bp.sync(request=BPEvent("finished_leading_card", priority=10.0))
