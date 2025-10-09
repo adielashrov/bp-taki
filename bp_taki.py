@@ -30,7 +30,8 @@ all_events = [
     bp.BEvent("end_game")
 ]
 
-random.seed(0)
+# Control the randomness of card dealing
+random.seed(1)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
@@ -175,6 +176,17 @@ class DealCardsPlayerEventSet(bp.EventSet):
             raise TypeError(
                 f"Player_{self.index}_DealCardsPlayerEventSet: Expected item of type BPEvent, got {type(item)}")
 
+class DealCardsEventSet(bp.EventSet):
+    def __init__(self):
+        super().__init__(lambda event: event.name.startswith(f"deal_p_"))
+
+    def __contains__(self, item):
+        if isinstance(item, BPEvent):
+            return item.name.startswith(f"deal_p_")
+        else:
+            raise TypeError(
+                f"DealCardsEventSet: Expected item of type BPEvent, got {type(item)}")
+
 
 '''
 def create_and_shuffle_cards():
@@ -191,7 +203,7 @@ def create_and_shuffle_cards():
 '''
 
 
-def create_and_shuffle_cards():
+def init_cards_events():
 
     all_cards = [BPEvent(name="stop_red", data={}, priority=10.0),
          BPEvent(name="card_5_blue", data={}, priority=10.0),
@@ -244,36 +256,47 @@ def end_of_game():  # blocks moves after the game is over
     yield bp.sync(block=bp.All())
 
 
+def create_deal_events(card_events_list):
+    deal_cards_events = []
+    for index, card_event in enumerate(card_events_list):
+        deal_player_card_event = BPEvent("deal_p_" + card_event.name, priority=card_event.priority)
+        deal_cards_events.append(deal_player_card_event)
+
+    return deal_cards_events
+
 @bp.thread
 def deal_cards(num_of_players=2, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
-    cards = create_and_shuffle_cards()
+    cards_events = init_cards_events()
+    deal_cards_events = create_deal_events(cards_events)
     for i in range(num_of_players):
+        yield bp.sync(request=BPEvent(f"deal_cards_to_player_{i}", priority=10.0))
         for j in range(num_of_cards):
-            card_event = cards.pop()
-            deal_player_card_event = BPEvent("deal_p_" + str(i) + "_" + card_event.name, priority=card_event.priority)
-            yield bp.sync(request=deal_player_card_event)
+            last_event = yield bp.sync(request=deal_cards_events) # possible pattern here?
+            deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent("finished_dealing_cards_to_players", priority=10.0))
 
     # Deal the leading card
     yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
-    top_card = cards.pop()
-    yield bp.sync(request=BPEvent(f"leading_{top_card.name}", priority=10.0))
+    last_event = yield bp.sync(request=deal_cards_events)  # possible pattern here?
+    deal_cards_events.remove(last_event)
+    yield bp.sync(request=BPEvent(f"leading_{last_event.name}", priority=10.0))
     yield bp.sync(request=BPEvent("finished_leading_card", priority=10.0))
 
     while True:
         last_event = yield bp.sync(waitFor=[BPEvent("p_0_draw_card"), BPEvent("p_1_draw_card")])
-        player_index = 0 if "p_0" in last_event.name else 1
-        if not cards:  # imagine an infinite pile of cards.
-            cards = create_and_shuffle_cards()
-        card_event = cards.pop()
-        deal_player_card_event = BPEvent("deal_p_" + str(player_index) + "_" + card_event.name, priority=9.0)
-        other_player_cards_event_set = PlayerEventSet(1 - player_index)
-        yield bp.sync(request=deal_player_card_event)
+        if not deal_cards_events:  # imagine an infinite pile of cards.
+            deal_cards_events = create_deal_events(init_cards_events())
+        yield bp.sync(request=deal_cards_events)
 
 
 def remove_deal_prefix_from_event(event):
     card_name = event.name.removeprefix("deal_")
+    return card_name
+
+def remove_deal_prefix_and_add_player_index(event, player_index):
+    card_name = event.name.removeprefix("deal_p_")
+    card_name = f"p_{player_index}_" + card_name
     return card_name
 
 
@@ -303,12 +326,12 @@ def request_post_action_for_regular_cards(index):
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
-    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
+    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
     card_events = []
-    deal_player_cards_event_set = DealCardsPlayerEventSet(index)
+    deal_player_cards_event_set = DealCardsEventSet()
     for i in range(num_of_cards):
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
-        card_name = remove_deal_prefix_from_event(deal_card_event)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
         card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
 
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
@@ -341,7 +364,7 @@ def player_behavior(index, num_of_cards=2):
             # if we want to simulate a deadlock - add the following block   - block=bp.AllExcept(BPEvent("deadlock"))
             # deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
-            card_name = remove_deal_prefix_from_event(deal_card_event)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
         # If the other player ended the game.
         if event.name.startswith(f"end_game"):  # similar to breakupon.
@@ -435,10 +458,10 @@ def enforce_turns():
         last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here +Block here can cause deadlocks!
 
         if f'p_{player}_draw_card' in last_event.name: # if the player requested to draw a card, wait for a deal_card event
-            yield bp.sync(waitFor=DealCardsPlayerEventSet(player),block=bp.EventSet(lambda e: f'deal_p_{player}' not in e.name))  # pattern and here
+            yield bp.sync(waitFor=DealCardsEventSet(),block=bp.EventSet(lambda e: f'deal_p_' not in e.name))  # pattern and here
 
         if is_plus_2_card_event(last_event):
-            print("[enforce_turns] Plus 2 card played player by player:", player)
+            print("[enforce_turns] Plus 2 card played by player:", player)
             pass
 
         if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
