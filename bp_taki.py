@@ -31,7 +31,9 @@ all_events = [
 ]
 
 # Control the randomness of card dealing
-random.seed(2)
+SEED = 7
+random.seed(SEED)
+print("Random seed for card dealing:", SEED)
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
@@ -66,6 +68,7 @@ all_player_1_except_no_more_cards_and_last_card = bp.EventSet(
 
 any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 
+announce_color_event_set = bp.EventSet(lambda e: 'announce_color' in e.name)
 
 def is_event_draw_card_event(player_index, event):
     if f"p_{player_index}_draw_card" == event.name:
@@ -195,6 +198,22 @@ def create_cards_from_different_color_or_type_event_set(card_color, card_type):
             return False
 
     return bp.EventSet(cards_from_the_different_color_or_type)
+
+
+def create_block_set_color_only(color: str):
+    def is_play_event(e):
+        return (
+            isinstance(e, BPEvent)
+            and re.match(r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$", e.name) is not None
+        )
+    def to_block(e):
+        if not is_play_event(e):
+            return False
+        if is_change_color_event(e):
+            return False
+        c, _ = extract_card_color_and_type(e)
+        return c is not None and c != color
+    return bp.EventSet(to_block)
 
 
 class PlayerEventSet(bp.EventSet):
@@ -392,6 +411,39 @@ def request_post_action_for_regular_cards(index):
                                     block=general_player_event_set)
 
 
+def select_color_for_change_color_card(index, card_events):
+    """
+    Selects a color after playing a change_color card.
+    Prefers colors that the player has in their hand, otherwise chooses randomly.
+
+    Parameters
+    ----------
+    index : int
+        The player index
+    card_events : list[BPEvent]
+        The current cards in the player's hand
+
+    Returns
+    -------
+    str
+        The selected color: "red", "blue", or "green"
+    """
+    # Extract available colors from remaining cards
+    available_colors = []
+    for card in card_events:
+        if card.name != f"p_{index}_draw_card":
+            color, _ = extract_card_color_and_type(card)
+            if color and color not in available_colors:
+                available_colors.append(color)
+
+    # Choose a color (prefer one we have, otherwise random)
+    if available_colors:
+        selected_color = random.choice(available_colors)
+    else:
+        selected_color = random.choice(["red", "blue", "green"])
+
+    return selected_color
+
 @bp.thread
 def player_behavior(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
@@ -417,6 +469,11 @@ def player_behavior(index, num_of_cards=2):
             event.name.startswith(f"p_{index}_plus_2")  or
             event.name.startswith(f"p_{index}_change_color")):
             card_events.remove(event)
+
+            # If change_color was played, announce a color
+            if event.name.startswith(f"p_{index}_change_color"):
+                selected_color = select_color_for_change_color_card(index, card_events)
+                yield bp.sync(request=BPEvent(f"p_{index}_announce_color_{selected_color}", priority=5.0))
 
             # If the only event is a single regular card, announce last card!
             card_count = count_num_of_cards(index, card_events)
@@ -518,7 +575,7 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
     # Plus 2 cards
     plus_2_pattern = r"p_\d+_plus_2_\w+"
     if re.match(plus_2_pattern, event.name) is not None:
-        print("[is_color_or_type_card_event]: Plus 2 card detected")
+        # print("[is_color_or_type_card_event]: Plus 2 card detected")
         return True
 
     return False
@@ -537,11 +594,20 @@ def enforce_turns():
             yield bp.sync(waitFor=DealCardsEventSet(),block=bp.EventSet(lambda e: f'deal_p_' not in e.name))  # pattern and here
 
         if is_plus_2_card_event(last_event):
-            print("[enforce_turns] Plus 2 card played by player:", player)
+            # print("[enforce_turns] Plus 2 card played by player:", player)
             pass
 
         if is_change_color_event(last_event):
             print("[enforce_turns] Change color card played by player:", player)
+            # Wait for p_{player}_announce_color_* and block the opponent meanwhile
+            announce_event = yield bp.sync(
+                waitFor=bp.EventSet(lambda e: e.name.startswith(f"p_{player}_announce_color_")),
+                block=all_player_events(1 - player)
+            )
+            print("[enforce_turns] Player", player, "announced color:", announce_event.name)
+            # After the announcement, pass the turn
+            player = 1 - player
+            continue
 
         if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
             continue
@@ -705,10 +771,11 @@ def enforce_same_color_or_type():
             different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
                                                                                                       card_type)
         elif is_change_color_event(last_event):
-            print("Something should happen now in enforce_same_color_or_type "
-                     "when the card is a change color card...")
-        # else:
-        #    print(f"[enforce_same_color_or_number] Ignored event (not a color/number/stop card): {last_event.name}")
+            color_event = yield bp.sync(waitFor=announce_color_event_set)
+            announced_color = color_event.name.split("_")[-1]
+            print("[enforce_same_color_or_number] Change color played, announced color:", announced_color)
+            different_colors_or_types_event_set = create_block_set_color_only(announced_color)
+
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
 
