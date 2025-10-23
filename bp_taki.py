@@ -12,24 +12,6 @@ from typing import *
 
 NUM_OF_CARDS = 4
 
-# Control events
-all_events = [
-    bp.BEvent("p_0_card_7_red"),
-    bp.BEvent("p_0_card_9_blue"),
-    bp.BEvent("p_1_card_3_red"),
-    bp.BEvent("p_1_card_1_blue"),
-    bp.BEvent("start_dealing_cards_to_players"),
-    bp.BEvent("finished_dealing_cards_to_players"),
-    bp.BEvent("deal_leading_card"),
-    bp.BEvent("finished_leading_card"),
-    bp.BEvent("start_game"),
-    bp.BEvent("no_more_cards"),
-    bp.BEvent("end_game"),
-    bp.BEvent("leading_card_5_blue"),
-    bp.BEvent("start_game"),
-    bp.BEvent("end_game")
-]
-
 # Control the randomness of card dealing
 SEED = 7
 random.seed(SEED)
@@ -252,21 +234,6 @@ class DealCardsEventSet(bp.EventSet):
                 f"DealCardsEventSet: Expected item of type BPEvent, got {type(item)}")
 
 
-'''
-def create_and_shuffle_cards():
-    all_cards = []
-    colors = ["blue", "red","green"]
-    numbers = ["1", "3", "4", "5","6","7","8","9"]
-    for color in colors:
-        for number in numbers:
-            card_event_name= "card_" + number + "_" + color
-            all_cards.append(BPEvent(card_event_name, priority=10.0))
-
-    random.shuffle(all_cards)
-    return all_cards
-'''
-
-
 def init_cards_events():
 
     all_cards = [BPEvent(name="stop_red", data={}, priority=10.0),
@@ -455,7 +422,6 @@ def select_color_for_change_color_card(index, card_events):
 
     # Select color with the highest count, with deterministic tiebreaking (red > blue > green) max_count = max(color_counts.values())
 
-
     if max_count == 0:
         return "red"  # No colored cards, default to red
 
@@ -633,146 +599,6 @@ def enforce_turns():
             continue
 
         player = 1 - player
-
-
-'''
-@bp.thread
-def enforce_turns():  # blocks moves that are not in turn
-    yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
-    while True:
-        last_event_p_0 = yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
-        if is_event_draw_card_event(0, last_event_p_0):
-            yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
-
-        last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
-        if is_event_draw_card_event(1, last_event_p_1):
-            yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
-'''
-
-'''
-# Updated enforce_turns b-thread that addresses the Stop action card
-@bp.thread
-def enforce_turns():
-    yield bp.sync(waitFor=BPEvent("start_game",priority=10.0))
-    while True:
-        while True:
-            last_event_p_0 = yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
-            if not is_event_stop_card_event(0, last_event_p_0):
-                break
-
-        if is_event_draw_card_event(0, last_event_p_0):
-            yield bp.sync(waitFor=all_player_0_events, block=all_player_1_except_no_more_cards_and_last_card)
-
-        while True:
-            last_event_p_1 = yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
-            if not is_event_stop_card_event(1, last_event_p_1):
-                break
-
-        if is_event_draw_card_event(1, last_event_p_1):
-            yield bp.sync(waitFor=all_player_1_events, block=all_player_0_except_no_more_cards_and_last_card)
-'''
-
-'''
-@bp.thread
-def enforce_turns():  # blocks moves that are not in turn
-    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-
-    # Track penalty state
-    penalty_in_progress = False
-    penalty_player = None
-    penalty_draws_remaining = 0
-
-    while True:
-        # Listen for penalty events
-        event = yield bp.sync(
-            waitFor=bp.EventSet(lambda e:
-                                e.name.startswith("penalize_player_") or
-                                e.name.startswith("p_0_") or
-                                e.name.startswith("p_1_")
-                                ),
-            block=bp.EventSet(lambda e: False)  # Don't block anything initially
-        )
-
-        # Handle penalty start
-        if event.name.startswith("penalize_player_"):
-            penalty_in_progress = True
-            penalty_player = 0 if event.name == "penalize_player_0" else 1
-            penalty_draws_remaining = 4
-            print(f"[TURNS] Penalty mode: Player {penalty_player} can take {penalty_draws_remaining} penalty draws")
-            continue
-
-        # Handle penalty draws
-        if penalty_in_progress and event.name == f"p_{penalty_player}_draw_card":
-            penalty_draws_remaining -= 1
-            print(f"[TURNS] Penalty draw: {penalty_draws_remaining} draws remaining for Player {penalty_player}")
-
-            if penalty_draws_remaining <= 0:
-                penalty_in_progress = False
-                penalty_player = None
-                print(f"[TURNS] Penalty complete - resuming normal turn enforcement")
-            continue
-
-        # Normal turn enforcement (when not in penalty mode)
-        if not penalty_in_progress:
-            if event.name.startswith("p_0_"):
-                acting_player = 0
-                other_player = 1
-            elif event.name.startswith("p_1_"):
-                acting_player = 1
-                other_player = 0
-            else:
-                continue
-
-            # Block the other player's actions during this player's turn
-            yield bp.sync(
-                waitFor=all_player_0_events if acting_player == 0 else all_player_1_events,
-                block=all_player_1_except_no_more_cards_and_last_card if acting_player == 0
-                else all_player_0_except_no_more_cards_and_last_card
-            )
-
-            # Handle draw card extensions (if player draws, they get another action)
-            if is_event_draw_card_event(acting_player, event):
-                yield bp.sync(
-                    waitFor=all_player_0_events if acting_player == 0 else all_player_1_events,
-                    block=all_player_1_except_no_more_cards_and_last_card if acting_player == 0
-                    else all_player_0_except_no_more_cards_and_last_card
-                )
-'''
-
-
-@bp.thread
-def enforce_same_color():
-    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
-    last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
-    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-    card_color = extract_card_color(event=last_event)
-    different_colors_event_set = create_cards_from_different_color_event_set(card_color)
-    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
-
-    while True:
-        if is_color_card_event(last_event):
-            card_color = extract_card_color(event=last_event)
-            different_colors_event_set = create_cards_from_different_color_event_set(card_color)
-        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_event_set)
-
-
-# This b-thread is currently not used in the b-program.
-@bp.thread
-def enforce_same_number():
-    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
-    last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
-    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-    card_number = extract_card_number(event=last_event)
-    different_numbers_event_set = create_cards_from_different_number_event_set(card_number)
-    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_numbers_event_set)
-
-    while True:
-        if is_color_card_event(last_event):
-            card_number = extract_card_number(event=last_event)
-            different_numbers_event_set = create_cards_from_different_number_event_set(card_number)
-        last_event = yield bp.sync(waitFor=general_player_event_set, block=different_numbers_event_set)
 
 
 @bp.thread
