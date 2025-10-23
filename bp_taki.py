@@ -312,6 +312,19 @@ def is_change_color_event(event: BPEvent) -> bool:
     return "change_color" in event.name
 
 
+def is_change_color_play(e) -> bool:
+    # PLAY only: p_<i>_change_color
+    return isinstance(e, BPEvent) and re.match(r"^p_\d+_change_color$", e.name) is not None
+
+def is_announce_color_play(e) -> bool:
+    # PLAY only: p_<i>_announce_color_(red|green|blue|ד)
+    return isinstance(e, BPEvent) and re.match(r"^p_\d+_announce_color_(red|green|blue)$", e.name) is not None
+
+def player_idx_of(event_name: str) -> int:
+    m = re.match(r"^p_(\d+)_", event_name)
+    return int(m.group(1)) if m else -1
+
+
 @bp.thread
 def game_manager():
     yield bp.sync(request=BPEvent("start_dealing_cards_to_players", priority=10.0))
@@ -414,7 +427,9 @@ def request_post_action_for_regular_cards(index):
 def select_color_for_change_color_card(index, card_events):
     """
     Selects a color after playing a change_color card.
-    Prefers colors that the player has in their hand, otherwise chooses randomly.
+    Prefers colors that the player has in their hand (chooses the most frequent).
+    If tied, prefers in order: red, blue, green.
+    If no colored cards remain, defaults to red.
 
     Parameters
     ----------
@@ -428,21 +443,26 @@ def select_color_for_change_color_card(index, card_events):
     str
         The selected color: "red", "blue", or "green"
     """
-    # Extract available colors from remaining cards
+    # Count available colors from remaining cards
+    color_counts = {"red": 0, "blue": 0, "green": 0}
     available_colors = []
+
     for card in card_events:
         if card.name != f"p_{index}_draw_card":
             color, _ = extract_card_color_and_type(card)
-            if color and color not in available_colors:
-                available_colors.append(color)
+            if color in color_counts:
+                color_counts[color] += 1
 
-    # Choose a color (prefer one we have, otherwise random)
-    if available_colors:
-        selected_color = random.choice(available_colors)
-    else:
-        selected_color = random.choice(["red", "blue", "green"])
+    # Select color with the highest count, with deterministic tiebreaking (red > blue > green) max_count = max(color_counts.values())
 
-    return selected_color
+
+    if max_count == 0:
+        return "red"  # No colored cards, default to red
+
+    # Return first color (in priority order) with max count
+    for color in ["red", "blue", "green"]:
+        if color_counts[color] == max_count:
+            return color
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
@@ -598,19 +618,20 @@ def enforce_turns():
             pass
 
         if is_change_color_event(last_event):
-            print("[enforce_turns] Change color card played by player:", player)
+            # print("[enforce_turns] Change color card played by player:", player)
             # Wait for p_{player}_announce_color_* and block the opponent meanwhile
             announce_event = yield bp.sync(
                 waitFor=bp.EventSet(lambda e: e.name.startswith(f"p_{player}_announce_color_")),
                 block=all_player_events(1 - player)
             )
-            print("[enforce_turns] Player", player, "announced color:", announce_event.name)
+            # print("[enforce_turns] Player", player, "announced color:", announce_event.name)
             # After the announcement, pass the turn
             player = 1 - player
             continue
 
         if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
             continue
+
         player = 1 - player
 
 
@@ -773,7 +794,7 @@ def enforce_same_color_or_type():
         elif is_change_color_event(last_event):
             color_event = yield bp.sync(waitFor=announce_color_event_set)
             announced_color = color_event.name.split("_")[-1]
-            print("[enforce_same_color_or_number] Change color played, announced color:", announced_color)
+            # print("[enforce_same_color_or_number] Change color played, announced color:", announced_color)
             different_colors_or_types_event_set = create_block_set_color_only(announced_color)
 
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
@@ -825,6 +846,22 @@ def verify_turn_alternation():
         # else:
         # Not a player action — just log
         # print(f"[Verifier] Ignored (not a player action): {event.name}")
+
+@bp.thread
+def assert_change_color_announcer_is_same_player():
+    # wait until the real game starts
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    while True:
+        wild = yield bp.sync(waitFor=bp.EventSet(is_change_color_play))
+        wild_p = player_idx_of(wild.name)
+
+        announce = yield bp.sync(waitFor=bp.EventSet(is_announce_color_play))
+        ann_p = player_idx_of(announce.name)
+
+        assert ann_p == wild_p, (
+            f"[ASSERT] announce_color by p_{ann_p} but change_color was by p_{wild_p} "
+            f"(wild={wild.name}, announce={announce.name})"
+        )
 
 
 @bp.thread
