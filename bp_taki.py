@@ -610,7 +610,6 @@ def enforce_turns():
     current_player = 0
     num_of_players = 2
     while True:
-        print(f"[enforce_turns] while loop; current_player={current_player}")
         # Block all players except the current player
         last_event = yield bp.sync(waitFor=[
                                             BPEvent("next_turn", priority=10.0),
@@ -620,7 +619,6 @@ def enforce_turns():
         if last_event.name.startswith("next_turn"):
             # Normal turn: move to next player
             current_player = (current_player + 1 )% num_of_players
-            print(f"[enforce_turns] next_turn; updating current_player={current_player}")
 
         if last_event.name.startswith("stop"):
             # Stop card: skip the next player, move to the one after
@@ -640,17 +638,18 @@ def enforce_same_color_or_type():
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
     while True:
-        if is_color_or_type_card_event(last_event):
+        if is_regular_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
             different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
                                                                                                       card_type)
         elif is_change_color_event(last_event):
-            color_event = yield bp.sync(waitFor=announce_color_event_set)
-            announced_color = color_event.name.split("_")[-1]
-            # print("[enforce_same_color_or_number] Change color played, announced color:", announced_color)
-            different_colors_or_types_event_set = create_block_set_color_only(announced_color)
+            changed_color_event = yield bp.sync(waitFor=[BPEvent("change_red", priority=10.0),
+                                                                                        BPEvent("change_blue", priority=10.0),
+                                                                                        BPEvent("change_green", priority=10.0)])
+            different_colors_or_types_event_set = create_block_set_color_only(changed_color_event)
 
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
+        print(f"[DEBUG enforce_same_color_or_type] Received event: {getattr(last_event, 'name', str(last_event))}")
 
 
 @bp.thread
@@ -838,8 +837,8 @@ def init_b_program():
                                       player_behavior(0, NUM_OF_CARDS),
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
-                                      identify_deadlock()],
-                                      #enforce_same_color_or_type(),
+                                      identify_deadlock(),
+                                      enforce_same_color_or_type()],
                                       # enforce_last_card_announcement(),
                                       # apply_penalty(),
                                      # detect_illegal_post_game_moves()],
