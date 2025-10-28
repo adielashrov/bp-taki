@@ -43,6 +43,37 @@ all_player_1_except_no_more_cards = bp.EventSet(lambda e: 'p_1' in e.name and no
 def all_player_except_no_more_cards_and_last_card(index):
     return bp.EventSet(lambda e: f'p_{index}' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
 
+
+
+
+def all_events_not_by_current_player(index: int):
+    '''
+    Return an EventSet that matches all events except those emitted by the given player.
+
+    Parameters
+    ----------
+    index : int
+        Player index used to identify player-specific event names (for example `p_0`).
+
+    Returns
+    -------
+    bp.AllExcept
+        An EventSet that is the complement of `bp.EventSet(lambda e: f'p_{index}' in e.name)`.
+        Events whose `name` contains the substring `p_{index}` will be excluded.
+    '''''
+    def is_event_of_current_player(event):
+        try:
+            result = f"p_{index}" in getattr(event, "name", "") or f"deal_p_{index}" in getattr(event, "name", "")
+            if not result:
+                result = True if event.name == "next_turn" or event.name == "stop" else False
+        except Exception as e:
+            print(f"[DEBUG is_event_of_current_player] index={index} error reading event.name: {event}")
+            raise
+        return result
+
+
+    return bp.AllExcept(bp.EventSet(is_event_of_current_player))
+
 all_player_0_except_no_more_cards_and_last_card = bp.EventSet(
     lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
 all_player_1_except_no_more_cards_and_last_card = bp.EventSet(
@@ -51,11 +82,6 @@ all_player_1_except_no_more_cards_and_last_card = bp.EventSet(
 any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 
 announce_color_event_set = bp.EventSet(lambda e: 'announce_color' in e.name)
-
-def is_event_draw_card_event(player_index, event):
-    if f"p_{player_index}_draw_card" == event.name:
-        return True
-    return False
 
 
 def is_event_stop_card_event(player_index, event):
@@ -236,31 +262,42 @@ class DealCardsEventSet(bp.EventSet):
 
 def init_cards_events():
 
-    all_cards = [BPEvent(name="stop_red", data={}, priority=10.0),
+    all_cards = []
+    # Init regular cards
+    colors = ["red", "blue", "green"]
+    numbers = ["1", "3", "4", "5"]
+    for color in colors:
+        for number in numbers:
+            all_cards.append(BPEvent(name=f"card_{number}_{color}", priority=10.0))
+
+    '''
+    all_cards = [BPEvent(name="card_5_blue", data={}, priority=10.0),
+         # BPEvent(name="stop_red", data={}, priority=10.0),
          BPEvent(name="card_5_blue", data={}, priority=10.0),
-         BPEvent(name="change_color", data={}, priority=10.0),
-         BPEvent(name="stop_blue", data={}, priority=10.0),
+         # BPEvent(name="change_color", data={}, priority=10.0),
+         # BPEvent(name="stop_blue", data={}, priority=10.0),
          BPEvent(name="card_1_red", data={}, priority=10.0),
-         BPEvent(name="plus_2_red", data={}, priority=10.0),
+         # BPEvent(name="plus_2_red", data={}, priority=10.0),
          BPEvent(name="card_4_blue", data={}, priority=10.0),
-         BPEvent(name="change_color", data={}, priority=10.0),
-         BPEvent(name="stop_green", data={}, priority=10.0),
+         # BPEvent(name="change_color", data={}, priority=10.0),
+         # BPEvent(name="stop_green", data={}, priority=10.0),
          BPEvent(name="card_5_green", data={}, priority=10.0),
-         BPEvent(name="plus_2_green", data={}, priority=10.0),
+         # BPEvent(name="plus_2_green", data={}, priority=10.0),
          BPEvent(name="card_1_blue", data={}, priority=10.0),
-         BPEvent(name="change_color", data={}, priority=10.0),
+         # BPEvent(name="change_color", data={}, priority=10.0),
          BPEvent(name="card_3_green", data={}, priority=10.0),
          BPEvent(name="card_1_green", data={}, priority=10.0),
          BPEvent(name="card_4_red", data={}, priority=10.0),
-         BPEvent(name="stop_red", data={}, priority=10.0),
-         BPEvent(name="change_color", data={}, priority=10.0),
-         BPEvent(name="plus_2_blue", data={}, priority=10.0),
+         # BPEvent(name="stop_red", data={}, priority=10.0),
+         # BPEvent(name="change_color", data={}, priority=10.0),
+         # BPEvent(name="plus_2_blue", data={}, priority=10.0),
          BPEvent(name="card_5_red", data={}, priority=10.0),
          BPEvent(name="card_4_green", data={}, priority=10.0),
-         BPEvent(name="stop_green", data={}, priority=10.0),
-         BPEvent(name="card_3_blue", data={}, priority=10.0),
-         BPEvent(name="stop_blue", data={}, priority=10.0),
-         BPEvent(name="plus_2_red", data={}, priority=10.0)]
+         # BPEvent(name="stop_green", data={}, priority=10.0),
+         BPEvent(name="card_3_blue", data={}, priority=10.0)]
+         # BPEvent(name="stop_blue", data={}, priority=10.0),
+         # BPEvent(name="plus_2_red", data={}, priority=10.0)]
+    '''
 
     return all_cards
 
@@ -300,7 +337,10 @@ def game_manager():
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(request=BPEvent("start_game", priority=10.0))
     yield bp.sync(waitFor=any_player_no_more_cards)
-    yield bp.sync(request=BPEvent("end_game", priority=7.0))
+    # End the game, the only event allowed is end_game
+    yield bp.sync(request=BPEvent("end_game", priority=7.0),
+                           block=bp.AllExcept(BPEvent("end_game", priority=7.0)))
+    yield bp.sync(block=bp.All())
 
 
 @bp.thread
@@ -319,7 +359,7 @@ def create_deal_events(card_events_list):
 
 # A regular card is a card with a number (1-9) and a color (red, blue, green).
 # a possible input event to this method is deal_p_card_5_blue
-def is_regular_card(event: BPEvent) -> bool:
+def is_deal_regular_card_event(event: BPEvent) -> bool:
     pattern = r"deal_p_card_\d+_\w+"
     if re.match(pattern, event.name) is not None:
         return True
@@ -342,7 +382,7 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
     # Filter to only regular numbered cards
     regular_cards = [card for card in deal_cards_events
-                     if is_regular_card(card)]
+                     if is_deal_regular_card_event(card)]
     # We want that the leading card will be a regular card.
     last_event = yield bp.sync(request=regular_cards)  # possible pattern here?
     deal_cards_events.remove(last_event)
@@ -376,21 +416,7 @@ def count_num_of_cards(index: int, action_events: list[BPEvent]) -> int:
     card_count = len([e for e in action_events if e.name.startswith(f"p_{index}_card")])
     return card_count
 
-
-@bp.thread
-def request_post_action_for_regular_cards(index):
-    while True:
-        last_event = yield bp.sync(waitFor=general_player_event_set)
-        if (last_event.name.startswith(f"p_{index}_card") or
-                last_event.name.startswith(f"p_{index}_draw_card") or
-                last_event.name.startswith(f"p_{index}_stop") or
-                last_event.name.startswith(f"p_{index}_plus_2") or
-                last_event.name.startswith(f"p_{index}_change_color")):
-            event_name = "post_action_" + last_event.name
-            yield bp.sync( request=BPEvent(event_name, priority=last_event.priority),
-                                    block=general_player_event_set)
-
-
+# Check if the following method could be removed in the future if not needed.
 def select_color_for_change_color_card(index, card_events):
     """
     Selects a color after playing a change_color card.
@@ -420,7 +446,8 @@ def select_color_for_change_color_card(index, card_events):
             if color in color_counts:
                 color_counts[color] += 1
 
-    # Select color with the highest count, with deterministic tiebreaking (red > blue > green) max_count = max(color_counts.values())
+    # Select color with the highest count, with deterministic tiebreaking (red > blue > green)
+    max_count = max(color_counts.values())
 
     if max_count == 0:
         return "red"  # No colored cards, default to red
@@ -429,6 +456,29 @@ def select_color_for_change_color_card(index, card_events):
     for color in ["red", "blue", "green"]:
         if color_counts[color] == max_count:
             return color
+
+
+# A regular card is a card with a number (1-9) and a color (red, blue, green).
+# a possible input event to this method is p_1_card_4_blue
+def is_regular_card_event(event: BPEvent) -> bool:
+    card_event_pattern = r"p_\d+_card_\d+_\w+"
+    if re.match(card_event_pattern, event.name) is not None:
+        return True
+    return False
+
+
+def is_draw_card_event(event: BPEvent) -> bool:
+    draw_card_pattern = r"p_\d+_draw_card"
+    if re.match(draw_card_pattern, event.name) is not None:
+            return True
+    return False
+
+#TODO: Debug method when we have action cards in the deck.
+def is_action_card_event(event: BPEvent) -> bool:
+    action_card_pattern = r"p_\d+_(change_color|plus_2_\w+|stop_\w+)"
+    if re.match(action_card_pattern, event.name) is not None:
+            return True
+    return False
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
@@ -442,45 +492,33 @@ def player_behavior(index, num_of_cards=2):
 
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
 
-    # Define announce last card event
-    last_card_event = BPEvent(f"p_{index}_last_card", priority=6.0)
     # Add draw_card_event to the cards events(Possible actions of player)
     draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
     card_events.append(draw_card_event)
 
     while True:
-        event = yield bp.sync(waitFor=general_player_event_set, request=card_events)
-        if (event.name.startswith(f"p_{index}_card") or
-            event.name.startswith(f"p_{index}_stop") or
-            event.name.startswith(f"p_{index}_plus_2")  or
-            event.name.startswith(f"p_{index}_change_color")):
-            card_events.remove(event)
+        card_event = yield bp.sync(request=card_events)
 
-            # If change_color was played, announce a color
-            if event.name.startswith(f"p_{index}_change_color"):
-                selected_color = select_color_for_change_color_card(index, card_events)
-                yield bp.sync(request=BPEvent(f"p_{index}_announce_color_{selected_color}", priority=5.0))
-
-            # If the only event is a single regular card, announce last card!
-            card_count = count_num_of_cards(index, card_events)
-            # if card_count == 1:
-            # print(f"player_{index} Should have announced last_card_event")
-            # event = yield bp.sync(request=last_card_event)
-
-            # If the only event left is draw_card, break and end the game.
-            if list_contains_only_draw_card_event(card_events):
-                yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
-                break
+        if is_regular_card_event(card_event):
+            card_events.remove(card_event)
         # If there is a draw card event, wait for a card to be dealt.
-        if event.name.startswith(f"p_{index}_draw_card"):
-            # if we want to simulate a deadlock - add the following block   - block=bp.AllExcept(BPEvent("deadlock"))
-            # deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set, block=bp.AllExcept(BPEvent("deadlock")))
+        elif is_draw_card_event(card_event):
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
-        # If the other player ended the game.
-        if event.name.startswith(f"end_game"):  # similar to breakupon.
+        # If this is an action card - wait for done_post_action event.
+        elif is_action_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            card_events.remove(card_event)
+
+        # If the only event left is draw_card, break and end the game.
+        if list_contains_only_draw_card_event(card_events):
+            yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
             break
+        else: # else announce that you have finished your turn.
+            print(f"Player {index} finished turn with cards: {[e.name for e in card_events if e.name != draw_card_event.name]}")
+            yield bp.sync(request=BPEvent("next_turn", priority=10.0))
+
 
 
 def extract_card_color(event: BPEvent) -> str:
@@ -490,7 +528,6 @@ def extract_card_color(event: BPEvent) -> str:
 
 
 def extract_card_number(event: BPEvent) -> str:
-    # print(f"extract_card_color event: {event}")
     card_str_index = event.name.find("card")
     card_number = event.name[card_str_index + 5:card_str_index + 6]
     return card_number
@@ -570,35 +607,25 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
 @bp.thread
 def enforce_turns():
     yield bp.sync(waitFor=BPEvent("start_game"))
-    player = 0
+    current_player = 0
+    num_of_players = 2
     while True:
-        yield bp.sync(waitFor=all_player_events(player),
-                      block=all_player_except_no_more_cards_and_last_card(1 - player))
-        last_event = yield bp.sync(waitFor=all_player_post_action_events(player), block=bp.EventSet(lambda e: 'p_' in e.name and 'post_action' not in e.name)) # pattern here +Block here can cause deadlocks!
+        print(f"[enforce_turns] while loop; current_player={current_player}")
+        # Block all players except the current player
+        last_event = yield bp.sync(waitFor=[
+                                            BPEvent("next_turn", priority=10.0),
+                                            BPEvent("stop", priority=10.0)],
+                      block=all_events_not_by_current_player(current_player))
 
-        if f'p_{player}_draw_card' in last_event.name: # if the player requested to draw a card, wait for a deal_card event
-            yield bp.sync(waitFor=DealCardsEventSet(),block=bp.EventSet(lambda e: f'deal_p_' not in e.name))  # pattern and here
+        if last_event.name.startswith("next_turn"):
+            # Normal turn: move to next player
+            current_player = (current_player + 1 )% num_of_players
+            print(f"[enforce_turns] next_turn; updating current_player={current_player}")
 
-        if is_plus_2_card_event(last_event):
-            # print("[enforce_turns] Plus 2 card played by player:", player)
-            pass
-
-        if is_change_color_event(last_event):
-            # print("[enforce_turns] Change color card played by player:", player)
-            # Wait for p_{player}_announce_color_* and block the opponent meanwhile
-            announce_event = yield bp.sync(
-                waitFor=bp.EventSet(lambda e: e.name.startswith(f"p_{player}_announce_color_")),
-                block=all_player_events(1 - player)
-            )
-            # print("[enforce_turns] Player", player, "announced color:", announce_event.name)
-            # After the announcement, pass the turn
-            player = 1 - player
-            continue
-
-        if f'p_{player}_stop' in last_event.name: # if the player played a Stop card, skip the other player's turn
-            continue
-
-        player = 1 - player
+        if last_event.name.startswith("stop"):
+            # Stop card: skip the next player, move to the one after
+            print(f"[enforce_turns] stop; updating current_player={current_player}")
+            current_player = (current_player + 2) % num_of_players
 
 
 @bp.thread
@@ -810,15 +837,13 @@ def init_b_program():
                                       deal_cards(2, NUM_OF_CARDS),
                                       player_behavior(0, NUM_OF_CARDS),
                                       player_behavior(1, NUM_OF_CARDS),
-                                      request_post_action_for_regular_cards(0),
-                                      request_post_action_for_regular_cards(1),
                                       enforce_turns(),
-                                      enforce_same_color_or_type(),
+                                      identify_deadlock()],
+                                      #enforce_same_color_or_type(),
                                       # enforce_last_card_announcement(),
                                       # apply_penalty(),
-                                      identify_deadlock()],
-                            #detect_illegal_post_game_moves()],
-                            # verify_turn_alternation()],
+                                     # detect_illegal_post_game_moves()],
+                                     # verify_turn_alternation()],
                             event_selection_strategy=EventPrioritySelectionStrategy(),
                             listener=bp.PrintBProgramRunnerListener())
     return b_program
