@@ -25,7 +25,15 @@ pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_
 general_player_event_set = bp.EventSet(lambda e:
                                        hasattr(e, 'name') and re.match(pattern, e.name) is not None
                                        )
-def all_player_events(index):
+
+def all_player_events():
+    def match_event_name(e):
+        if hasattr(e, 'name') and 'p_' in e.name:
+            return True
+        return False
+    return bp.EventSet(match_event_name)
+
+def all_player_index_events(index):
     return bp.EventSet(lambda e: f'p_{index}' in e.name)
 
 all_player_0_events = bp.EventSet(lambda e: 'p_0' in e.name)
@@ -52,6 +60,14 @@ def all_players_cards_except_special_cards(index):
 def player_stop_card_event_set(index):
     return bp.EventSet(lambda e: e.name.startswith(f"p_{index}_stop"))
 
+
+def init_selected_color_or_type_event_set(card_color: str, card_type: str):
+    def predicate(e: BPEvent):
+        if f"card_{card_type}" in e.name or card_color in e.name:
+            return True
+        return False
+
+    return bp.EventSet(predicate)
 
 def all_events_not_by_current_player(index: int):
     '''
@@ -646,22 +662,21 @@ def enforce_turns(num_of_players=2):
 
 
 @bp.thread
-def enforce_same_color_or_type():
+def enforce_card_placement_rules():
     yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
     last_event = yield bp.sync(waitFor=leading_card_event_set)
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color, card_type = extract_card_color_and_type(event=last_event)
-    all_player_events = bp.EventSet(lambda e: e.name.startswith('p_'))
-    selected_color_or_type_event_set = bp.EventSet(lambda e: f"card_{card_type}" in e.name or card_color in e.name)
-    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events, selected_color_or_type_event_set)
+    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(), init_selected_color_or_type_event_set(card_color,card_type))
+    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
     while True:
         if is_regular_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
-            selected_color_or_type_event_set = bp.EventSet(lambda e: f"card_{card_type}" in e.name or card_color in e.name)
-            different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events,
-                                                                         selected_color_or_type_event_set)
+            different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(),
+                                                                         init_selected_color_or_type_event_set(
+                                                                             card_color, card_type))
 
         elif is_change_color_event(last_event):
             changed_color_event = yield bp.sync(waitFor=[BPEvent("change_red", priority=10.0),
@@ -904,9 +919,9 @@ def init_b_program():
                                       player_behavior(0, NUM_OF_CARDS),
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
+                                      enforce_card_placement_rules(),
                                       identify_deadlock(),
                                       verify_turn_alternation()],
-                                      # enforce_same_color_or_type()],
                                       # enforce_last_card_announcement(),
                                       # apply_penalty(),
                                      # detect_illegal_post_game_moves()],
