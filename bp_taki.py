@@ -63,6 +63,9 @@ def player_stop_card_event_set(index):
 
 def init_selected_color_or_type_event_set(card_color: str, card_type: str):
     def predicate(e: BPEvent):
+        # System events that are always allowed regardless of placement rules
+        if "draw_card" in e.name: # Single Edge case - for now. TODO: revise.
+            return True
         if f"card_{card_type}" in e.name or card_color in e.name:
             return True
         return False
