@@ -11,9 +11,10 @@ import re
 from typing import *
 
 NUM_OF_CARDS = 4
+NUM_OF_PLAYERS = 2
 
 # Control the randomness of card dealing
-SEED = 7
+SEED = 3
 random.seed(SEED)
 print("Random seed for card dealing:", SEED)
 
@@ -40,10 +41,16 @@ all_player_1_post_action_events = bp.EventSet(lambda e: 'post_action_p_1' in e.n
 all_player_0_except_no_more_cards = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name)
 all_player_1_except_no_more_cards = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name)
 
-def all_player_except_no_more_cards_and_last_card(index):
-    return bp.EventSet(lambda e: f'p_{index}' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
+def all_players_cards_except_special_cards(index):
+    def predicate(e: BPEvent):
+        if f'p_{index}' in e.name and not 'no_more_cards' in e.name:
+            return True
+        return False
 
+    return bp.EventSet(predicate)
 
+def player_stop_card_event_set(index):
+    return bp.EventSet(lambda e: e.name.startswith(f"p_{index}_stop"))
 
 
 def all_events_not_by_current_player(index: int):
@@ -63,7 +70,7 @@ def all_events_not_by_current_player(index: int):
     '''''
     def is_event_of_current_player(event):
         try:
-            result = f"p_{index}" in getattr(event, "name", "") or f"deal_p_{index}" in getattr(event, "name", "")
+            result = f"p_{index}" in getattr(event, "name", "") or f"deal_p" in getattr(event, "name", "")
             if not result:
                 result = True if event.name == "next_turn" or event.name == "stop" else False
         except Exception as e:
@@ -84,10 +91,24 @@ any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 announce_color_event_set = bp.EventSet(lambda e: 'announce_color' in e.name)
 
 
-def is_event_stop_card_event(player_index, event):
-    if event.name.startswith(f"p_{player_index}_stop"):
-        return True
-    return False
+def get_player_id(name: str):
+    player_reg_exp = re.compile(r"^p_(\d+)_")
+    m = player_reg_exp.match(name)
+    if m:
+        id = int(m.group(1))
+    else:
+        id = None
+    return id
+
+
+
+def all_player_stop_card_events(player_index):
+    def is_event_stop_card_event(event):
+        pattern = fr"p_{player_index}_stop_\w+"
+        if re.match(pattern, event.name) is not None:
+            return True
+        return False
+    return bp.EventSet(is_event_stop_card_event)
 
 
 def create_cards_from_same_color_event_set(color):
@@ -516,7 +537,7 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
             break
         else: # else announce that you have finished your turn.
-            print(f"Player {index} finished turn with cards: {[e.name for e in card_events if e.name != draw_card_event.name]}")
+            # print(f"Player {index} finished turn with cards: {[e.name for e in card_events if e.name != draw_card_event.name]}")
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
@@ -605,25 +626,23 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
 
 
 @bp.thread
-def enforce_turns():
+def enforce_turns(num_of_players=2):
     yield bp.sync(waitFor=BPEvent("start_game"))
     current_player = 0
-    num_of_players = 2
+    next_player = (current_player + 1) % num_of_players
     while True:
-        # Block all players except the current player
         last_event = yield bp.sync(waitFor=[
                                             BPEvent("next_turn", priority=10.0),
-                                            BPEvent("stop", priority=10.0)],
-                      block=all_events_not_by_current_player(current_player))
+                                            all_player_stop_card_events(current_player)],
+                      block=all_players_cards_except_special_cards(next_player))
 
         if last_event.name.startswith("next_turn"):
-            # Normal turn: move to next player
-            current_player = (current_player + 1 )% num_of_players
-
-        if last_event.name.startswith("stop"):
-            # Stop card: skip the next player, move to the one after
-            print(f"[enforce_turns] stop; updating current_player={current_player}")
-            current_player = (current_player + 2) % num_of_players
+            current_player = next_player
+            next_player = (next_player + 1) % num_of_players
+        if last_event.name.startswith(f"p_{current_player}_stop"):
+            print(f"[enforce_turns] stop; - before - next_player={next_player}")
+            next_player = (next_player + 1) % num_of_players
+            print(f"[enforce_turns] stop; - after - next_player={next_player}")
 
 
 @bp.thread
@@ -633,15 +652,17 @@ def enforce_same_color_or_type():
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color, card_type = extract_card_color_and_type(event=last_event)
-    different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
-                                                                                              card_type)
-    last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
+    all_player_events = bp.EventSet(lambda e: e.name.startswith('p_'))
+    selected_color_or_type_event_set = bp.EventSet(lambda e: f"card_{card_type}" in e.name or card_color in e.name)
+    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events, selected_color_or_type_event_set)
 
     while True:
         if is_regular_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
-            different_colors_or_types_event_set = create_cards_from_different_color_or_type_event_set(card_color,
-                                                                                                      card_type)
+            selected_color_or_type_event_set = bp.EventSet(lambda e: f"card_{card_type}" in e.name or card_color in e.name)
+            different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events,
+                                                                         selected_color_or_type_event_set)
+
         elif is_change_color_event(last_event):
             changed_color_event = yield bp.sync(waitFor=[BPEvent("change_red", priority=10.0),
                                                                                         BPEvent("change_blue", priority=10.0),
@@ -649,7 +670,6 @@ def enforce_same_color_or_type():
             different_colors_or_types_event_set = create_block_set_color_only(changed_color_event)
 
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
-        print(f"[DEBUG enforce_same_color_or_type] Received event: {getattr(last_event, 'name', str(last_event))}")
 
 
 @bp.thread
@@ -668,7 +688,7 @@ def detect_illegal_post_game_moves():
     illegal_event = yield bp.sync(waitFor=bp.All())
     assert False, f"Illegal event occurred after game ended: {illegal_event}"
 
-
+'''
 @bp.thread
 def verify_turn_alternation():
     yield bp.sync(waitFor=BPEvent("start_game"))
@@ -679,13 +699,7 @@ def verify_turn_alternation():
         # Wait for any game event (not just player actions)
         event = yield bp.sync(waitFor=bp.EventSet(lambda e: True))
 
-        # Determine if this event is a player action
-        is_player_action = (
-                (event.name.startswith("p_0_card_") or event.name.startswith("p_1_card_")) or
-                (event.name == "p_0_draw_card" or event.name == "p_1_draw_card")
-        )
-
-        if is_player_action:
+        if event.name.startswith("p_"):
             # Determine which player acted
             acting_player = 0 if event.name.startswith("p_0_") else 1
 
@@ -695,9 +709,62 @@ def verify_turn_alternation():
                 )
 
             last_acting_player = acting_player
-        # else:
-        # Not a player action — just log
-        # print(f"[Verifier] Ignored (not a player action): {event.name}")
+'''
+
+
+
+@bp.thread
+def verify_turn_alternation():
+    yield bp.sync(waitFor=BPEvent("start_game"))
+
+    active_player_id = None  # ID of the player currently allowed to act
+    turn_boundary_cleared = True  # Has 'next_turn' been seen since the last turn began?
+
+    while True:
+        event = yield bp.sync(waitFor=bp.EventSet(lambda e: True))
+
+        if event.name == "end_game":
+            break
+
+        if event.name == "next_turn":
+            if turn_boundary_cleared and active_player_id is None:
+                bp.log("verify_turn_alternation: duplicate next_turn (noop)")
+            # Ready for a new turn
+            turn_boundary_cleared = True
+            active_player_id = None
+            continue
+
+        # Get the player who triggered the event
+        event_player_id = get_player_id(event.name)
+        if event_player_id is None:
+            continue
+
+        # --- Check Turn Logic ---
+
+        # 1. Start of a turn (active_player_id is None)
+        if active_player_id is None:
+            # Check for illegal player switch (e.g., P0 acts, then P1 acts immediately without next_turn)
+            # This check is complex in the original, relying on saw_next_turn
+            if not turn_boundary_cleared:  # This case should ideally not be reachable if logic is sound elsewhere
+                raise AssertionError(
+                    f"[Verifier] Player {event_player_id} acted before 'next_turn': {event}"
+                )
+
+            # Establish the active player for this turn
+            active_player_id = event_player_id
+            turn_boundary_cleared = False
+            continue
+
+        # 2. Mid-turn action (active_player_id is defined)
+        if event_player_id != active_player_id:
+            # Another player acted without a 'next_turn' in between → violation
+            raise AssertionError(
+                f"[Verifier] Player {event_player_id} acted during Player "
+                f"{active_player_id}'s turn without 'next_turn'. Event={event}, "
+                f"turn_boundary_cleared={turn_boundary_cleared}"
+            )
+        # else: same active_player_id again within the same turn → OK (multi-action turn)
+
 
 @bp.thread
 def assert_change_color_announcer_is_same_player():
@@ -838,11 +905,12 @@ def init_b_program():
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
                                       identify_deadlock(),
-                                      enforce_same_color_or_type()],
+                                      verify_turn_alternation()],
+                                      # enforce_same_color_or_type()],
                                       # enforce_last_card_announcement(),
                                       # apply_penalty(),
                                      # detect_illegal_post_game_moves()],
-                                     # verify_turn_alternation()],
+                                     # ()],
                             event_selection_strategy=EventPrioritySelectionStrategy(),
                             listener=bp.PrintBProgramRunnerListener())
     return b_program
