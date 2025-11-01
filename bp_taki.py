@@ -14,7 +14,7 @@ NUM_OF_CARDS = 4
 NUM_OF_PLAYERS = 2
 
 # Control the randomness of card dealing
-SEED = 3
+SEED = 5
 random.seed(SEED)
 print("Random seed for card dealing:", SEED)
 
@@ -64,7 +64,7 @@ def player_stop_card_event_set(index):
 def init_selected_color_or_type_event_set(card_color: str, card_type: str):
     def predicate(e: BPEvent):
         # System events that are always allowed regardless of placement rules
-        if "draw_card" in e.name: # Single Edge case - for now. TODO: revise.
+        if "draw_card" in e.name: # Single Edge case
             return True
         if "no_more_cards" in e.name:  # Second edge case
             return True
