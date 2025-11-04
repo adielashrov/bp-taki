@@ -119,3 +119,28 @@ class EventSetList(EventSet):
         else:
             return item.predicate(event)
 
+class EventSetsDifference(EventSet):
+    """
+    A class to represent the difference between two event sets.
+    """
+    def __init__(self, event_set_a, event_set_b):
+        """
+        Constructs all the necessary attributes for the EventSetDifference object.
+
+        Parameters
+        ----------
+        event_set_a : `EventSet <bppy.model.event_set.EventSet>`
+            The first event set.
+        event_set_b : `EventSet <bppy.model.event_set.EventSet>`
+            The second event set.
+        """
+
+        self.event_set_a = event_set_a
+        self.event_set_b = event_set_b
+
+        def item_in_A_and_not_in_B(event):
+            item_in_A = self.event_set_a.__contains__(event)
+            item_in_B = self.event_set_b.__contains__(event)
+            return item_in_A and not item_in_B
+
+        super().__init__(item_in_A_and_not_in_B)
