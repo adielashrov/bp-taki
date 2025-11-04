@@ -57,6 +57,15 @@ def all_players_cards_except_special_cards(index):
 
     return bp.EventSet(predicate)
 
+def all_other_player_cards_besides_special_cards(index):
+    def predicate(e: BPEvent):
+        if f'p_{index}' not in e.name and 'p_' in e.name and not 'no_more_cards' in e.name\
+                and not 'deal_p_' in e.name:
+            return True
+        return False
+
+    return bp.EventSet(predicate)
+
 def player_stop_card_event_set(index):
     return bp.EventSet(lambda e: e.name.startswith(f"p_{index}_stop"))
 
@@ -308,9 +317,13 @@ def init_cards_events():
     # Init regular cards
     colors = ["red", "blue", "green"]
     numbers = ["1", "3", "4", "5"]
-    for color in colors:
+    for color in colors: # Add regular cards - 1 of each number and color
         for number in numbers:
             all_cards.append(BPEvent(name=f"card_{number}_{color}", priority=10.0))
+
+    for color in colors: # Add color cards - 2 of each color
+        all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
+        all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
 
     '''
     all_cards = [BPEvent(name="card_5_blue", data={}, priority=10.0),
@@ -515,12 +528,28 @@ def is_draw_card_event(event: BPEvent) -> bool:
             return True
     return False
 
-#TODO: Debug method when we have action cards in the deck.
 def is_action_card_event(event: BPEvent) -> bool:
     action_card_pattern = r"p_\d+_(change_color|plus_2_\w+|stop_\w+)"
     if re.match(action_card_pattern, event.name) is not None:
             return True
     return False
+
+def is_stop_card_event(event: BPEvent) -> bool:
+    stop_card_pattern = r"p_\d+_stop_\w+"
+    if re.match(stop_card_pattern, event.name) is not None:
+            return True
+    return False
+
+# TODO: Remove this b-thread if it's continues to be unused.
+@bp.thread
+def post_stop_card_handler():
+    while True:
+        stop_event = yield bp.sync(waitFor=bp.EventSet(is_stop_card_event))
+        print(f"[post_stop_card_handler] stop card event detected: {stop_event.name}")
+        last_event = yield bp.sync(waitFor=BPEvent("finished_stop_card", priority=9.0))
+        print(f"[post_stop_card_handler] recieved the finished_stop_card event")
+        yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+        print(f"[post_stop_card_handler] requested done_post_action for event: {stop_event.name}")
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
@@ -648,22 +677,24 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
 
 @bp.thread
 def enforce_turns(num_of_players=2):
+    next_or_stop_lst = [BPEvent("next_turn", priority=10.0), bp.EventSet(is_stop_card_event)]
+    next_turn_or_stop_event_set = bp.EventSetList(next_or_stop_lst)
+
     yield bp.sync(waitFor=BPEvent("start_game"))
+
     current_player = 0
     next_player = (current_player + 1) % num_of_players
-    while True:
-        last_event = yield bp.sync(waitFor=[
-                                            BPEvent("next_turn", priority=10.0),
-                                            all_player_stop_card_events(current_player)],
-                      block=all_players_cards_except_special_cards(next_player))
+    while True: # We should block the other player from playing out of turn in all the while loop.
+        last_event = yield bp.sync(waitFor=next_turn_or_stop_event_set,
+                      block=all_other_player_cards_besides_special_cards(current_player))
 
         if last_event.name.startswith("next_turn"):
             current_player = next_player
             next_player = (next_player + 1) % num_of_players
         if last_event.name.startswith(f"p_{current_player}_stop"):
-            print(f"[enforce_turns] stop; - before - next_player={next_player}")
             next_player = (next_player + 1) % num_of_players
-            print(f"[enforce_turns] stop; - after - next_player={next_player}")
+            yield bp.sync(request=BPEvent("done_post_action", priority=10.0),
+                                   block=all_other_player_cards_besides_special_cards(current_player))
 
 
 @bp.thread
