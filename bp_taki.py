@@ -77,6 +77,8 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
             return True
         if "no_more_cards" in e.name:  # Second edge case
             return True
+        if "change_color" in e.name:  # Third edge case
+            return True
         if f"card_{card_type}" in e.name or card_color in e.name:
             return True
         return False
@@ -324,6 +326,10 @@ def init_cards_events():
     for color in colors: # Add color cards - 2 of each color
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
+
+    for color in colors: # Add Change color cards - 2 of each color
+        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
+        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
 
     '''
     all_cards = [BPEvent(name="card_5_blue", data={}, priority=10.0),
@@ -644,8 +650,16 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
             else:
                 change_color_index = event.name.find("change_color")
                 if change_color_index != -1:
-                    return "", "CHANGE_COLOR"
-                else:
+                    # Extract color from patterns like "change_color_red" or "p_0_change_color_red"
+                    parts = event.name.split("_")
+                    if len(parts) >= 3 and parts[-2] == "color":
+                        color = parts[-1]
+                        if color in ["red", "blue", "green"]:
+                            return color ,"CHANGE_COLOR"
+                        else:
+                            print("Received change_color event with no color specified, defaulting to empty string.")
+                            return "", "CHANGE_COLOR"
+                else: # card is unmatched - return None, None
                     return None, None
 
 
@@ -716,10 +730,9 @@ def enforce_card_placement_rules():
                                                                              card_color, card_type))
 
         elif is_change_color_event(last_event):
-            changed_color_event = yield bp.sync(waitFor=[BPEvent("change_red", priority=10.0),
-                                                                                        BPEvent("change_blue", priority=10.0),
-                                                                                        BPEvent("change_green", priority=10.0)])
-            different_colors_or_types_event_set = create_block_set_color_only(changed_color_event)
+            card_color, card_type = extract_card_color_and_type(event=last_event)
+            different_colors_or_types_event_set = create_block_set_color_only(card_color)
+            yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
