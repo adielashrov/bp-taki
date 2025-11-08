@@ -551,6 +551,7 @@ def post_stop_card_handler():
         yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
         print(f"[post_stop_card_handler] requested done_post_action for event: {stop_event.name}")
 
+
 @bp.thread
 def player_behavior(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
