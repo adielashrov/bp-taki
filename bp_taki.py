@@ -261,6 +261,7 @@ def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     return bp.EventSet(cards_from_the_different_color_or_type)
 
 
+# TODO: document this function behavior
 def create_block_set_color_only(color: str):
     def is_play_event(e):
         return (
@@ -331,6 +332,10 @@ def init_cards_events():
         all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
 
+    # for color in colors:
+    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
+    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
+
     '''
     all_cards = [BPEvent(name="card_5_blue", data={}, priority=10.0),
          # BPEvent(name="stop_red", data={}, priority=10.0),
@@ -362,9 +367,8 @@ def init_cards_events():
 
     return all_cards
 
-def is_plus_2_card_event(event: BPEvent) -> bool:
-    """Check if event is a Plus 2 card"""
-    return "plus_2" in event.name
+def is_plus_2_card_event(e: BPEvent) -> bool:
+    return isinstance(e, BPEvent) and re.match(r"^p_\d+_plus_2_\w+$", e.name) is not None
 
 def extract_plus_2_color(event: BPEvent) -> Optional[str]:
     """Extract color from Plus 2 card event"""
@@ -545,6 +549,25 @@ def is_stop_card_event(event: BPEvent) -> bool:
     if re.match(stop_card_pattern, event.name) is not None:
             return True
     return False
+
+# TODO: partial implementation, not working at the moment.
+@bp.thread
+def plus2_card_handler():
+    while True:
+        plus_2_event = yield bp.sync(waitFor=bp.EventSet(is_plus_2_card_event))
+        print(f"[plus2_card_handler] plus 2 card event detected: {plus_2_event.name}")
+        player_who_played = get_player_id(plus_2_event.name)
+        next_player = 1 - player_who_played # TODO: Generalize for more than 2 players
+        print(f"[PLUS2] Player {player_who_played} played Plus 2 → Player {next_player} draws 2 cards")
+
+        for i in range(2):
+            print(f"[PLUS2] Going to request p_{next_player}_draw_card to Player {next_player}")
+            last_event = yield bp.sync(request=BPEvent(f"p_{next_player}_draw_card", priority=9.0))
+            print(f"[PLUS2] Dealt card {last_event.name} to Player {next_player}")
+            deal_card_event = yield bp.sync(waitFor=DealCardsEventSet())
+        print(f"[plus2_card_handler] Player {next_player} has drawn 2 cards due to Plus 2")
+        yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+        print(f"[plus2_card_handler] requested the done_post_action event for plus 2 card")
 
 # TODO: Remove this b-thread if it's continues to be unused.
 @bp.thread
@@ -970,6 +993,7 @@ def init_b_program():
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
                                       enforce_card_placement_rules(),
+                                      # plus2_card_handler(),
                                       identify_deadlock(),
                                       verify_turn_alternation()],
                                       # enforce_last_card_announcement(),
