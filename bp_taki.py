@@ -10,7 +10,7 @@ import random
 import re
 from typing import *
 
-NUM_OF_CARDS = 4
+NUM_OF_CARDS = 6
 NUM_OF_PLAYERS = 2
 
 # Control the randomness of card dealing
@@ -689,6 +689,7 @@ def super_taki_handler():
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     current_card_color, current_card_type = extract_card_color_and_type(event=last_event)
+    # End of duplicated code.
 
     while True:
         print("[super_taki_handler] waiting for game events...")
@@ -888,6 +889,10 @@ def enforce_card_placement_rules():
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
+        elif is_super_taki_event(last_event):
+            print(f"[enforce_card_placement_rules] Super Taki detected: {last_event.name}, yielding control to super_taki_handler")
+            yield bp.sync(waitFor=BPEvent("done_super_taki", priority=10.0))
+            print(f"[enforce_card_placement_rules] Received done_super_taki, resuming control")
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
 
