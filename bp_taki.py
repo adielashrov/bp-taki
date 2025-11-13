@@ -79,6 +79,8 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
             return True
         if "change_color" in e.name:  # Third edge case
             return True
+        if "super_taki" in e.name:  # Fourth edge case
+            return True
         if f"card_{card_type}" in e.name or card_color in e.name:
             return True
         return False
@@ -261,20 +263,129 @@ def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     return bp.EventSet(cards_from_the_different_color_or_type)
 
 
-# TODO: document this function behavior
 def create_block_set_color_only(color: str):
+    """
+    Creates an EventSet that blocks cards of colors different from the specified color.
+
+    Used after a change_color card is played to enforce that the next card played
+    must match the newly selected color. However, special cards like change_color
+    and super_taki can bypass this color restriction.
+
+    Parameters
+    ----------
+    color : str
+        The required color that cards must match. Must be one of: "red", "green", "blue"
+
+    Returns
+    -------
+    bp.EventSet
+        An EventSet that returns True for play events that should be blocked
+        (i.e., cards that don't match the required color and aren't special bypass cards)
+
+    Examples
+    --------
+    After a change_color card selects "blue":
+    block_set = create_block_set_color_only("blue")
+    # Blocks: p_0_card_5_red, p_0_stop_green, p_0_plus_2_red
+    # Allows: p_0_card_3_blue, p_0_stop_blue, p_0_super_taki, p_0_change_color
+
+    Notes
+    -----
+    This function is specifically designed for use after change_color cards,
+    where color matching is enforced but special cards can still be played.
+    """
+
     def is_play_event(e):
+        """
+        Determines if an event is a card play event (as opposed to system events
+        like draw_card, next_turn, etc.).
+
+        Recognizes two categories of play events:
+        1. Colored cards: regular cards, stop, and plus_2 with color suffixes
+        2. Super Taki: special card without a color suffix
+
+        Parameters
+        ----------
+        e : BPEvent
+            The event to check
+
+        Returns
+        -------
+        bool or Match object
+            Returns a truthy value (Match object) if the event is a play event,
+            None (falsy) otherwise
+
+        Examples
+        --------
+        is_play_event(BPEvent("p_0_card_5_blue"))  # Returns Match object (truthy)
+        is_play_event(BPEvent("p_0_super_taki"))   # Returns Match object (truthy)
+        is_play_event(BPEvent("p_0_draw_card"))    # Returns None (falsy)
+        is_play_event(BPEvent("next_turn"))        # Returns None (falsy)
+
+        Notes
+        -----
+        The regex patterns are:
+        - r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$" for colored cards
+        - r"^p_\d+_super_taki$" for super_taki (no color suffix)
+        """
+        # Match colored cards OR super_taki (which has no color suffix)
         return (
-            isinstance(e, BPEvent)
-            and re.match(r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$", e.name) is not None
+                isinstance(e, BPEvent)
+                and (re.match(r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$", e.name) is not None
+                     or re.match(r"^p_\d+_super_taki$", e.name) is not None)
         )
+
     def to_block(e):
+        """
+        Determines if a play event should be blocked based on color mismatch.
+
+        The blocking logic follows these rules:
+        1. Non-play events (e.g., draw_card, next_turn) are never blocked
+        2. change_color cards bypass color restrictions (can be played on any color)
+        3. super_taki cards bypass color restrictions (can be played on any color)
+        4. All other play events are blocked if their color doesn't match the required color
+
+        Parameters
+        ----------
+        e : BPEvent
+            The event to evaluate for blocking
+
+        Returns
+        -------
+        bool
+            True if the event should be blocked (color mismatch), False otherwise
+
+        Examples
+        --------
+        When the required color is "blue":
+        to_block(BPEvent("p_0_card_5_red"))      # True - wrong color
+        to_block(BPEvent("p_0_card_3_blue"))     # False - correct color
+        to_block(BPEvent("p_0_super_taki"))      # False - bypass card
+        to_block(BPEvent("p_0_change_color"))    # False - bypass card
+        to_block(BPEvent("p_0_draw_card"))       # False - not a play event
+
+        Notes
+        -----
+        This function is called by the EventSet for each event to determine
+        if it should be included in the blocked set. The EventSet will then
+        prevent any blocked events from being selected during event selection.
+        """
+        # Ignore non-play events (like draw_card, next_turn, etc.)
         if not is_play_event(e):
             return False
+
+        # change_color cards can be played regardless of current color requirement
         if is_change_color_event(e):
             return False
+
+        # Super Taki can be played on any card regardless of color
+        if "super_taki" in e.name:
+            return False
+
+        # For all other play events, block if color doesn't match
         c, _ = extract_card_color_and_type(e)
         return c is not None and c != color
+
     return bp.EventSet(to_block)
 
 
@@ -336,34 +447,8 @@ def init_cards_events():
     #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
     #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
 
-    '''
-    all_cards = [BPEvent(name="card_5_blue", data={}, priority=10.0),
-         # BPEvent(name="stop_red", data={}, priority=10.0),
-         BPEvent(name="card_5_blue", data={}, priority=10.0),
-         # BPEvent(name="change_color", data={}, priority=10.0),
-         # BPEvent(name="stop_blue", data={}, priority=10.0),
-         BPEvent(name="card_1_red", data={}, priority=10.0),
-         # BPEvent(name="plus_2_red", data={}, priority=10.0),
-         BPEvent(name="card_4_blue", data={}, priority=10.0),
-         # BPEvent(name="change_color", data={}, priority=10.0),
-         # BPEvent(name="stop_green", data={}, priority=10.0),
-         BPEvent(name="card_5_green", data={}, priority=10.0),
-         # BPEvent(name="plus_2_green", data={}, priority=10.0),
-         BPEvent(name="card_1_blue", data={}, priority=10.0),
-         # BPEvent(name="change_color", data={}, priority=10.0),
-         BPEvent(name="card_3_green", data={}, priority=10.0),
-         BPEvent(name="card_1_green", data={}, priority=10.0),
-         BPEvent(name="card_4_red", data={}, priority=10.0),
-         # BPEvent(name="stop_red", data={}, priority=10.0),
-         # BPEvent(name="change_color", data={}, priority=10.0),
-         # BPEvent(name="plus_2_blue", data={}, priority=10.0),
-         BPEvent(name="card_5_red", data={}, priority=10.0),
-         BPEvent(name="card_4_green", data={}, priority=10.0),
-         # BPEvent(name="stop_green", data={}, priority=10.0),
-         BPEvent(name="card_3_blue", data={}, priority=10.0)]
-         # BPEvent(name="stop_blue", data={}, priority=10.0),
-         # BPEvent(name="plus_2_red", data={}, priority=10.0)]
-    '''
+    all_cards.append(BPEvent(name=f"super_taki", priority=10.0))
+    all_cards.append(BPEvent(name=f"super_taki", priority=10.0))
 
     return all_cards
 
@@ -539,7 +624,7 @@ def is_draw_card_event(event: BPEvent) -> bool:
     return False
 
 def is_action_card_event(event: BPEvent) -> bool:
-    action_card_pattern = r"p_\d+_(change_color|plus_2_\w+|stop_\w+)"
+    action_card_pattern = r"p_\d+_(change_color|plus_2_\w+|stop_\w+|super_taki)"
     if re.match(action_card_pattern, event.name) is not None:
             return True
     return False
@@ -579,6 +664,18 @@ def post_stop_card_handler():
         print(f"[post_stop_card_handler] recieved the finished_stop_card event")
         yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
         print(f"[post_stop_card_handler] requested done_post_action for event: {stop_event.name}")
+
+@bp.thread
+def super_taki_handler():
+    def is_super_taki_play(e):
+        ans = isinstance(e, BPEvent) and re.match(r"^p_\d+_super_taki$", e.name) is not None
+        return ans
+
+    while True:
+        print("[super_taki_handler] waiting for super_taki events...")
+        super_taki_event = yield bp.sync(waitFor=bp.EventSet(is_super_taki_play))
+        print("[super_taki_handler] super_taki event detected:", super_taki_event.name)
+        yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
 
 @bp.thread
@@ -653,6 +750,7 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
         - For event.name == "stop_red", returns ("red", "STOP")
         - For event.name == "plus_2_red", returns ("red", "PLUS_2")
         - For event.name == "change_color", returns ("", "CHANGE_COLOR")
+        - For event.name == "super_taki", returns (None, "SUPER_TAKI")
         - For other event names, returns (None, None)
     """
     card_str_index = event.name.find("card")
@@ -682,8 +780,13 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
                         else:
                             print("Received change_color event with no color specified, defaulting to empty string.")
                             return "", "CHANGE_COLOR"
-                else: # card is unmatched - return None, None
-                    return None, None
+                else:
+                    super_taki_index = event.name.find("super_taki")
+                    if super_taki_index != -1:
+                        return None, "SUPER_TAKI"
+                    else: # card is unmatched - return None, None
+                        return None, None
+
 
 
 def is_color_card_event(event: BPEvent) -> bool:
@@ -993,6 +1096,7 @@ def init_b_program():
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
                                       enforce_card_placement_rules(),
+                                      super_taki_handler(),
                                       # plus2_card_handler(),
                                       identify_deadlock(),
                                       verify_turn_alternation()],
