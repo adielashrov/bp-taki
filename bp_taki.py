@@ -21,7 +21,7 @@ print("Random seed for card dealing:", SEED)
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # A bypass for EventSetUnify
-pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color))|end_game"
+pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|super_taki))|end_game"
 general_player_event_set = bp.EventSet(lambda e:
                                        hasattr(e, 'name') and re.match(pattern, e.name) is not None
                                        )
@@ -635,6 +635,20 @@ def is_stop_card_event(event: BPEvent) -> bool:
             return True
     return False
 
+def extract_player_id(event: BPEvent) -> Optional[int]:
+                """Extract player ID from event name (e.g., p_0_card -> 0)"""
+                player_reg_exp = re.compile(r"^p_(\d+)_")
+                m = player_reg_exp.match(event.name)
+                if m:
+                    return int(m.group(1))
+                else:
+                    return None
+
+
+def is_super_taki_event(e):
+    ans = isinstance(e, BPEvent) and re.match(r"^p_\d+_super_taki$", e.name) is not None
+    return ans
+
 # TODO: partial implementation, not working at the moment.
 @bp.thread
 def plus2_card_handler():
@@ -665,17 +679,29 @@ def post_stop_card_handler():
         yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
         print(f"[post_stop_card_handler] requested done_post_action for event: {stop_event.name}")
 
+
 @bp.thread
 def super_taki_handler():
-    def is_super_taki_play(e):
-        ans = isinstance(e, BPEvent) and re.match(r"^p_\d+_super_taki$", e.name) is not None
-        return ans
+
+    # Note: code is duplicated from enforce_card_placement_rules b-thread.
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
+    last_event = yield bp.sync(waitFor=leading_card_event_set)
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    current_card_color, current_card_type = extract_card_color_and_type(event=last_event)
 
     while True:
-        print("[super_taki_handler] waiting for super_taki events...")
-        super_taki_event = yield bp.sync(waitFor=bp.EventSet(is_super_taki_play))
-        print("[super_taki_handler] super_taki event detected:", super_taki_event.name)
-        yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+        print("[super_taki_handler] waiting for game events...")
+        last_event = yield bp.sync(waitFor=general_player_event_set)
+        if is_regular_card_event(last_event) or is_change_color_event(last_event):
+            current_card_color, current_card_type = extract_card_color_and_type(event=last_event)
+            print(f"[super_taki_handler] Regular card played - Color: {current_card_color}, Type: {current_card_type}")
+        elif is_super_taki_event(last_event):
+            current_player_id = extract_player_id(last_event)
+            print(f"[super_taki_handler] super_taki event detected: {last_event.name}, Player: {current_player_id}")
+            yield bp.sync(request=BPEvent("done_super_taki", priority=10.0),
+                         block=all_other_player_cards_besides_special_cards(current_player_id))
+            yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
 
 @bp.thread
@@ -818,15 +844,15 @@ def is_color_or_type_card_event(event: BPEvent) -> bool:
 
 @bp.thread
 def enforce_turns(num_of_players=2):
-    next_or_stop_lst = [BPEvent("next_turn", priority=10.0), bp.EventSet(is_stop_card_event)]
-    next_turn_or_stop_event_set = bp.EventSetList(next_or_stop_lst)
+    next_or_stop_or_super_taki_lst = [BPEvent("next_turn", priority=10.0), bp.EventSet(is_stop_card_event), bp.EventSet(is_super_taki_event)]
+    next_turn_or_stop_or_super_taki_event_set = bp.EventSetList(next_or_stop_or_super_taki_lst)
 
     yield bp.sync(waitFor=BPEvent("start_game"))
 
     current_player = 0
     next_player = (current_player + 1) % num_of_players
     while True: # We should block the other player from playing out of turn in all the while loop.
-        last_event = yield bp.sync(waitFor=next_turn_or_stop_event_set,
+        last_event = yield bp.sync(waitFor=next_turn_or_stop_or_super_taki_event_set,
                       block=all_other_player_cards_besides_special_cards(current_player))
 
         if last_event.name.startswith("next_turn"):
@@ -836,6 +862,8 @@ def enforce_turns(num_of_players=2):
             next_player = (next_player + 1) % num_of_players
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0),
                                    block=all_other_player_cards_besides_special_cards(current_player))
+        if last_event.name.startswith(f"p_{current_player}_super_taki"):
+            yield bp.sync(waitFor=BPEvent("done_super_taki", priority=10.0))    
 
 
 @bp.thread
