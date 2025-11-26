@@ -14,7 +14,7 @@ NUM_OF_CARDS = 6
 NUM_OF_PLAYERS = 2
 
 # Control the randomness of card dealing
-SEED = 5
+SEED = 0
 random.seed(SEED)
 print("Random seed for card dealing:", SEED)
 
@@ -556,10 +556,25 @@ def remove_deal_prefix_and_add_player_index(event, player_index):
     return card_name
 
 
-def list_contains_only_draw_card_event(action_events):
-    if len(action_events) == 1 and "_draw_card" in action_events[0].name:
+def list_does_not_contain_card_events(events: list[BPEvent]) -> bool:
+    """
+    Return True iff there are no more real card events in the list, i.e.,
+    the only remaining actions are 'draw_card' and/or 'closed_taki'.
+
+    This lets the player declare 'no_more_cards' when they have no playable
+    cards left in hand (other than drawing).
+    """
+    if not events: # Defensive: shouldn't really happen, but treat as "no cards"
         return True
-    return False
+
+    for e in events:
+        if "_draw_card" in e.name or "_closed_taki" in e.name:
+            continue
+        # Any other event means there is still at least one card in hand
+        return False
+
+    # We saw only draw/closed_taki
+    return True
 
 
 def count_num_of_cards(index: int, action_events: list[BPEvent]) -> int:
@@ -649,6 +664,10 @@ def is_super_taki_event(e):
     ans = isinstance(e, BPEvent) and re.match(r"^p_\d+_super_taki$", e.name) is not None
     return ans
 
+def is_closed_taki_event(e):
+    """Check if event is a closed_taki event signaling the end of a super taki sequence"""
+    return isinstance(e, BPEvent) and re.match(r"^p_\d+_closed_taki$", e.name) is not None
+
 # TODO: partial implementation, not working at the moment.
 @bp.thread
 def plus2_card_handler():
@@ -680,29 +699,11 @@ def post_stop_card_handler():
         print(f"[post_stop_card_handler] requested done_post_action for event: {stop_event.name}")
 
 
-@bp.thread
-def super_taki_handler():
-
-    # Note: code is duplicated from enforce_card_placement_rules b-thread.
-    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
-    last_event = yield bp.sync(waitFor=leading_card_event_set)
-    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
-    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-    current_card_color, current_card_type = extract_card_color_and_type(event=last_event)
-    # End of duplicated code.
-
-    while True:
-        print("[super_taki_handler] waiting for game events...")
-        last_event = yield bp.sync(waitFor=general_player_event_set)
-        if is_regular_card_event(last_event) or is_change_color_event(last_event):
-            current_card_color, current_card_type = extract_card_color_and_type(event=last_event)
-            print(f"[super_taki_handler] Regular card played - Color: {current_card_color}, Type: {current_card_type}")
-        elif is_super_taki_event(last_event):
-            current_player_id = extract_player_id(last_event)
-            print(f"[super_taki_handler] super_taki event detected: {last_event.name}, Player: {current_player_id}")
-            yield bp.sync(request=BPEvent("done_super_taki", priority=10.0),
-                         block=all_other_player_cards_besides_special_cards(current_player_id))
-            yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+def add_dummy_events(index, card_events, color):
+    numbers = ["1", "3", "4", "5"]
+    for number in numbers:
+        print(f"[add_dummy_events]: card_{number}_{color} for player: {index}")
+        card_events.append(BPEvent(name=f"p_{index}_card_{number}_{color}", priority=10.0))
 
 
 @bp.thread
@@ -733,15 +734,27 @@ def player_behavior(index, num_of_cards=2):
             card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
         # If this is an action card - wait for done_post_action event.
         elif is_action_card_event(card_event):
-            yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
-            card_events.remove(card_event)
+            if is_super_taki_event(card_event):
+                card_events.remove(card_event) # Remove super TAKI from deck
+                # Add closed_taki event to the possible actions of the player, the correct priority here is crucial.
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+                while True:
+                    card_event = yield bp.sync(request=card_events)
+                    card_events.remove(card_event)
+                    if card_event.name == f"p_{index}_closed_taki":
+                        break
+
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            else:
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                card_events.remove(card_event)
 
         # If the only event left is draw_card, break and end the game.
-        if list_contains_only_draw_card_event(card_events):
+        if list_does_not_contain_card_events(card_events):
             yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
             break
         else: # else announce that you have finished your turn.
-            # print(f"Player {index} finished turn with cards: {[e.name for e in card_events if e.name != draw_card_event.name]}")
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
@@ -864,7 +877,8 @@ def enforce_turns(num_of_players=2):
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0),
                                    block=all_other_player_cards_besides_special_cards(current_player))
         if last_event.name.startswith(f"p_{current_player}_super_taki"):
-            yield bp.sync(waitFor=BPEvent("done_super_taki", priority=10.0))    
+            yield bp.sync(request=BPEvent("done_post_action", priority=17.5), # priority here is higher than draw_card, but lower than closed_taki
+                                  block=all_other_player_cards_besides_special_cards(current_player))
 
 
 @bp.thread
@@ -890,9 +904,32 @@ def enforce_card_placement_rules():
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
         elif is_super_taki_event(last_event):
-            print(f"[enforce_card_placement_rules] Super Taki detected: {last_event.name}, yielding control to super_taki_handler")
-            yield bp.sync(waitFor=BPEvent("done_super_taki", priority=10.0))
-            print(f"[enforce_card_placement_rules] Received done_super_taki, resuming control")
+            strict_color_block = create_block_set_color_only(card_color)
+
+            # Track cards played during the TAKI sequence
+            last_taki_card_color = card_color
+            last_taki_card_type = card_type
+
+            # Create an EventSet that includes both general_player_event_set and done_post_action
+            taki_wait_events = bp.EventSetList([general_player_event_set, BPEvent("done_post_action", priority=17.5)])
+
+            while True:
+                taki_event = yield bp.sync(waitFor=taki_wait_events, block=strict_color_block)
+
+                # Check if TAKI sequence ended
+                if taki_event.name == "done_post_action":
+                    break
+
+                # Update tracking with each card played during TAKI
+                if is_regular_card_event(taki_event) or is_change_color_event(taki_event) or is_stop_card_event(taki_event):
+                    last_taki_card_color, last_taki_card_type = extract_card_color_and_type(taki_event)
+                    card_type_str = "change_color" if is_change_color_event(taki_event) else "regular"
+
+            # Update placement rules based on the last card from the TAKI sequence
+            card_color, card_type = last_taki_card_color, last_taki_card_type
+            different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(),
+                                                                         init_selected_color_or_type_event_set(
+                                                                             card_color, card_type))
         last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
 
@@ -1129,7 +1166,6 @@ def init_b_program():
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
                                       enforce_card_placement_rules(),
-                                      super_taki_handler(),
                                       # plus2_card_handler(),
                                       identify_deadlock(),
                                       verify_turn_alternation()],
