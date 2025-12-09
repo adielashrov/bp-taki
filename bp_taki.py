@@ -104,6 +104,11 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         elif "closed_taki" in e.name:  # Fifth edge case - allow closing TAKI sequences
             allowed = True
             reason = "closed_taki always allowed"
+        elif card_type == "STOP" and "stop_" in e.name:
+            # Any STOP (any color) matches a leading STOP card by type.
+            allowed = True
+            reason = f"matches type={card_type}"
+
         elif f"card_{card_type}" in e.name or card_color in e.name:
             allowed = True
             reason = f"matches color={card_color} or type={card_type}"
@@ -1004,6 +1009,16 @@ def enforce_card_placement_rules():
             card_color, card_type = extract_card_color_and_type(event=last_event)
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+
+        elif is_stop_card_event(last_event):
+            card_color, card_type = extract_card_color_and_type(event=last_event)
+            different_colors_or_types_event_set = bp.EventSetsDifference(
+                all_player_events(),
+                init_selected_color_or_type_event_set(card_color, card_type)
+            )
+            # Note: We do NOT request done_post_action here.
+            # The 'enforce_turns' threads handle the game logic (skipping/drawing)
+            # and they will request done_post_action. We just updated the blocking set.
 
         elif is_any_taki_event(last_event):
 
