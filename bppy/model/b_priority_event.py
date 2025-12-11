@@ -41,6 +41,17 @@ class BPEvent(BEvent):
         """
         return self.priority
 
+    def set_priority(self, priority):
+        """
+        Set the priority of this event.
+
+        Parameters
+        ----------
+        priority : float
+            The new priority value (lower number = higher priority)
+        """
+        self.priority = priority
+
     def __key(self):
         # When we compare between two BPEvents - we ignore priority
         return self.name, frozenset(self.data.items())
