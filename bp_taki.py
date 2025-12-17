@@ -16,7 +16,7 @@ NUM_OF_CARDS = 8
 NUM_OF_PLAYERS = 2
 
 # Control the randomness of card dealing
-SEED = 3
+SEED = 1
 
 LOG_LEVEL = logging.DEBUG
 
@@ -1331,7 +1331,22 @@ def enforce_card_placement_rules():
                     break
 
                 # Update tracking with each card played during TAKI
-                if is_regular_card_event(taki_event) or is_change_color_event(taki_event) or is_stop_card_event(taki_event):
+                if is_super_taki_event(taki_event):
+                    taki_sequence_cards.append(taki_event.name)
+                    # Color remains unchanged for Super TAKI
+                    _, last_taki_card_type = extract_card_color_and_type(taki_event)
+                    logger.debug(
+                        f"[ENFORCE_RULES] ✓ SuperTAKI Card accepted during TAKI: {taki_event.name} "
+                        f"(color={last_taki_card_color}, type={last_taki_card_type})"
+                    )
+                elif is_taki_card_event(taki_event):
+                    taki_sequence_cards.append(taki_event.name)
+                    last_taki_card_color, last_taki_card_type = extract_card_color_and_type(taki_event)
+                    logger.debug(
+                        f"[ENFORCE_RULES] ✓ TAKI Card accepted during TAKI: {taki_event.name} "
+                        f"(color={last_taki_card_color}, type={last_taki_card_type})"
+                    )
+                elif is_regular_card_event(taki_event) or is_change_color_event(taki_event) or is_stop_card_event(taki_event):
                     taki_sequence_cards.append(taki_event.name)
                     last_taki_card_color, last_taki_card_type = extract_card_color_and_type(taki_event)
                     logger.debug(
