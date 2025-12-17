@@ -1298,12 +1298,13 @@ def enforce_card_placement_rules():
             logger.debug(f"[ENFORCE_RULES] Previous placement color={card_color}")
             logger.debug(f"{'=' * 60}")
 
-            card_color = get_taki_mode_color(last_event, card_color) # Get the color for the TAKI mode
+            _, taki_start_type = extract_card_color_and_type(last_event) # We only need the type to track last_taki_card_type
 
+            card_color = get_taki_mode_color(last_event, card_color) # Get the color for the TAKI mode
             strict_color_block = create_taki_color_block(card_color)
 
             last_taki_card_color = card_color
-            last_taki_card_type = card_type
+            last_taki_card_type = taki_start_type
 
             taki_sequence_cards = []
 
