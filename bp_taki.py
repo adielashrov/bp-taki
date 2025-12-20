@@ -14,9 +14,10 @@ from log_b_program_runner_listener import LogBProgramRunnerListener
 
 NUM_OF_CARDS = 8
 NUM_OF_PLAYERS = 2
+COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 3
+SEED = 2 # good seeds for change color: 2, 4, a bug in 5
 
 LOG_LEVEL = logging.DEBUG
 
@@ -196,7 +197,7 @@ def create_cards_from_same_color_event_set(color):
 
 def create_cards_from_different_color_event_set(color):
     def cards_from_the_different_color(event):
-        colors = ["blue", "red", "green"]
+        colors = COLORS
         if color in colors:
             colors.remove(color)
         else:
@@ -261,7 +262,7 @@ def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     # Returns True (block): red 3 (matches neither color nor type - illegal play)
     # Returns True (block): green 7 (matches neither color nor type - illegal play)
     """
-    colors = ["blue", "red", "green"]
+    colors = COLORS
     types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP", "PLUS_2"]
     if card_color in colors and card_type in types:
         colors.remove(card_color)
@@ -441,6 +442,10 @@ def create_taki_color_block(color: str) -> bp.EventSet:
         if not isinstance(e, BPEvent):
             return False
 
+        if is_change_color_event(e):
+            # GAME implementation selection - We do not allow change_color during TAKI
+            return True
+
         card_color, _ = extract_card_color_and_type(e)
 
         # If the event has no color (None or ""), don't constrain it here
@@ -505,7 +510,7 @@ def init_cards_events():
 
     all_cards = []
     # Init regular cards
-    colors = ["red", "blue", "green"]
+    colors = COLORS
     numbers = ["1", "3", "4", "5"]
     for color in colors: # Add regular cards - 1 of each number and color
         for number in numbers:
@@ -515,13 +520,8 @@ def init_cards_events():
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
 
-    for color in colors: # Add Change color cards - 2 of each color
-        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
-        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
-
-    # for color in colors:
-    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
-    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
+    all_cards.append(BPEvent(name=f"change_color", priority=10.0))
+    all_cards.append(BPEvent(name=f"change_color", priority=10.0))
 
     # Add Regular Taki cards - 2 of each color
     for color in colors:
@@ -715,7 +715,7 @@ def select_color_for_change_color_card(index, card_events):
         return "red"  # No colored cards, default to red
 
     # Return first color (in priority order) with max count
-    for color in ["red", "blue", "green"]:
+    for color in COLORS:
         if color_counts[color] == max_count:
             return color
 
@@ -748,13 +748,13 @@ def is_stop_card_event(event: BPEvent) -> bool:
     return False
 
 def extract_player_id(event: BPEvent) -> Optional[int]:
-                """Extract player ID from event name (e.g., p_0_card -> 0)"""
-                player_reg_exp = re.compile(r"^p_(\d+)_")
-                m = player_reg_exp.match(event.name)
-                if m:
-                    return int(m.group(1))
-                else:
-                    return None
+    """Extract player ID from event name (e.g., p_0_card -> 0)"""
+    player_reg_exp = re.compile(r"^p_(\d+)_")
+    m = player_reg_exp.match(event.name)
+    if m:
+        return int(m.group(1))
+    else:
+        return None
 
 
 def is_super_taki_event(e):
@@ -835,6 +835,11 @@ def player_behavior(index, num_of_cards=2):
                         logger.debug(f"{'=' * 60}")
                         break
 
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            elif is_change_color_event(card_event):
+                card_events.remove(card_event)
+                selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                selected_color_event = yield bp.sync(request=selected_color_events)
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
             else:
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
@@ -1188,22 +1193,23 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
             card_color = event.name[stop_str_index + 5:]
             return card_color, "STOP"
         else:
-            plus_2_str_index = event.name.find("plus_2")
-            if plus_2_str_index != -1:
-                card_color = event.name[plus_2_str_index + 7:]
-                return card_color, "PLUS_2"
+            change_color_index = event.name.find("change_color") # to handle the abstract change color card
+            if change_color_index != -1 and "selected_" not in event.name:
+                return "", "CHANGE_COLOR"
             else:
-                change_color_index = event.name.find("change_color")
-                if change_color_index != -1:
-                    # Extract color from patterns like "change_color_red" or "p_0_change_color_red"
-                    parts = event.name.split("_")
-                    if len(parts) >= 3 and parts[-2] == "color":
-                        color = parts[-1]
-                        if color in ["red", "blue", "green"]:
-                            return color ,"CHANGE_COLOR"
-                        else:
-                            logger.debug("Received change_color event with no color specified, defaulting to empty string.")
-                            return "", "CHANGE_COLOR"
+                selected_change_color_index = event.name.find("selected_") # to handle the selected changed color
+                if selected_change_color_index != -1:
+                    # Extract color from patterns like "selected_red" or "selected_blue"
+                    color = [c for c in COLORS if c in event.name][0] if any(c in event.name for c in COLORS) else None
+                    if color in COLORS:
+                        return color, "CHANGE_COLOR"
+                    else:
+                         # Invalid color selection - this should never happen in a correct game
+                        error_msg = (f"Invalid color selection in event '{event.name}'. "
+                                    f"Expected 'selected_{{color}}' where color is one of {COLORS}, "
+                                    f"but extracted color was '{color}'")
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
                 else:
                     super_taki_index = event.name.find("super_taki")
                     if super_taki_index != -1:
@@ -1213,15 +1219,16 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
                         if taki_str_index != -1:
                             parts = event.name.split("_")
                             color = parts[-1]
-                            if color in ["red", "blue", "green"]:
+                            if color in COLORS:
                                 # logger.debug(f"[DEBUG extract_card_color_and_type] Regular TAKI: {event.name} -> Color: {color}, Type: TAKI")
                                 return color, "TAKI"
                         else: # card is unmatched - return None, None
+                            logger.error(f"[DEBUG extract_card_color_and_type] card was unmatched! {event.name}")
                             return None, None
 
 
 def is_color_card_event(event: BPEvent) -> bool:
-    for color in ["blue", "red", "green"]:
+    for color in COLORS:
         if color in event.name:
             return True
     return False
@@ -1289,7 +1296,9 @@ def enforce_card_placement_rules():
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color, card_type = extract_card_color_and_type(event=last_event)
-    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(), init_selected_color_or_type_event_set(card_color,card_type))
+    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(),
+                                                                 init_selected_color_or_type_event_set(card_color,
+                                                                                                       card_type))
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
     while True:
@@ -1300,7 +1309,9 @@ def enforce_card_placement_rules():
                                                                              card_color, card_type))
 
         elif is_change_color_event(last_event):
-            card_color, card_type = extract_card_color_and_type(event=last_event)
+            selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+            selected_color_event = yield bp.sync(waitFor=selected_color_events)
+            card_color, _ = extract_card_color_and_type(event=selected_color_event)
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
