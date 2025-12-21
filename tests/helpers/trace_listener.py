@@ -2,7 +2,7 @@
 
 class TraceListener:
     def __init__(self):
-        self.events = []  # event.name strings
+        self.events = []
 
     def starting(self, b_program): pass
     def started(self, b_program): pass
@@ -17,6 +17,8 @@ class TraceListener:
     def winner(self):
         for name in self.events:
             if name.startswith("p_") and name.endswith("_no_more_cards"):
-                # p_0_no_more_cards
                 return int(name.split("_")[1])
         return None
+
+    def tail(self, n: int = 30):
+        return self.events[-n:]
