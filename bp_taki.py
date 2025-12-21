@@ -1,7 +1,6 @@
 from typing import Union, Optional
 
 import bppy as bp
-from bppy.analysis.symbolic_bprogram_verifier import SymbolicBProgramVerifier
 from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
 from bppy.model.b_priority_event import BPEvent
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
@@ -13,13 +12,14 @@ import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
 
-NUM_OF_CARDS = 6
+NUM_OF_CARDS = 8
 NUM_OF_PLAYERS = 2
+COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 0
+SEED = 2 # good seeds for change color: 2, 4, a bug in 5
 
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 
 current_time = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
@@ -104,11 +104,11 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         elif "closed_taki" in e.name:  # Fifth edge case - allow closing TAKI sequences
             allowed = True
             reason = "closed_taki always allowed"
-        elif card_type == "STOP" and "stop_" in e.name:
+        elif (card_type == "STOP" and "stop_" in e.name) or card_color in e.name:
             # Any STOP (any color) matches a leading STOP card by type.
+            # But also allow matching by color.
             allowed = True
-            reason = f"matches type={card_type}"
-
+            reason =  f"matches color={card_color} or type={card_type}"
         elif f"card_{card_type}" in e.name or card_color in e.name:
             allowed = True
             reason = f"matches color={card_color} or type={card_type}"
@@ -116,13 +116,13 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         # If execution reaches this point, the event is about to be blocked.
         # We check if it is a "taki" card to verify if we are accidentally blocking a valid Taki-on-Taki move.
         if "taki" in e.name and card_type == "TAKI":
-            logger.debug(f"[RULES] ❌ Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
+            logger.debug(f"[RULES] Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
 
 
         # 🔍 DEBUG: logger.debug only when checking TAKI cards (reduce noise)
-        if "taki" in e.name.lower() or allowed:
-            symbol = "✓" if allowed else "✗"
-            logger.debug(f"[PLACEMENT_CHECK] {symbol} {e.name:30} | Reason: {reason if allowed else 'no match'}")
+        # if "taki" in e.name.lower() or allowed:
+            # symbol = "✓" if allowed else "✗"
+            # logger.debug(f"[PLACEMENT_CHECK] {symbol} {e.name:30} | Reason: {reason if allowed else 'no match'}")
 
         return allowed
 
@@ -197,7 +197,7 @@ def create_cards_from_same_color_event_set(color):
 
 def create_cards_from_different_color_event_set(color):
     def cards_from_the_different_color(event):
-        colors = ["blue", "red", "green"]
+        colors = COLORS
         if color in colors:
             colors.remove(color)
         else:
@@ -262,7 +262,7 @@ def create_cards_from_different_color_or_type_event_set(card_color, card_type):
     # Returns True (block): red 3 (matches neither color nor type - illegal play)
     # Returns True (block): green 7 (matches neither color nor type - illegal play)
     """
-    colors = ["blue", "red", "green"]
+    colors = COLORS
     types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP", "PLUS_2"]
     if card_color in colors and card_type in types:
         colors.remove(card_color)
@@ -442,23 +442,28 @@ def create_taki_color_block(color: str) -> bp.EventSet:
         if not isinstance(e, BPEvent):
             return False
 
+        if is_change_color_event(e):
+            # GAME implementation selection - We do not allow change_color during TAKI
+            return True
+
         card_color, _ = extract_card_color_and_type(e)
 
         # If the event has no color (None or ""), don't constrain it here
         # These are events like: draw_card, done_post_action, deadlock, super_taki and closed_taki.
         if not card_color:
-            logger.debug(f"[TAKI_BLOCK] ALLOW non-colored event: {e.name} during TAKI({color})")
+            # logger.debug(f"[TAKI_BLOCK] ALLOW non-colored event: {e.name} during TAKI({color})")
             return False
 
         # Block any colored card with a different color than the TAKI color
         should_block = (card_color != color)
 
         # Core debug line: every colored card checked against TAKI color
-        logger.debug(
-            f"[TAKI_BLOCK] CHECK event={e.name} "
-            f"(card_color={card_color}, TAKI_color={color}) "
-            f"-> {'BLOCK' if should_block else 'allow'}"
-        )
+        if should_block:
+            logger.debug(
+                f"[TAKI_BLOCK] CHECK event={e.name} "
+                f"(card_color={card_color}, TAKI_color={color}) "
+                f"-> {'BLOCK' if should_block else 'allow'}"
+            )
 
         return should_block
 
@@ -505,7 +510,7 @@ def init_cards_events():
 
     all_cards = []
     # Init regular cards
-    colors = ["red", "blue", "green"]
+    colors = COLORS
     numbers = ["1", "3", "4", "5"]
     for color in colors: # Add regular cards - 1 of each number and color
         for number in numbers:
@@ -515,13 +520,8 @@ def init_cards_events():
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
 
-    for color in colors: # Add Change color cards - 2 of each color
-        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
-        all_cards.append(BPEvent(name=f"change_color_{color}", priority=10.0))
-
-    # for color in colors:
-    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
-    #    all_cards.append(BPEvent(name=f"plus_2_{color}", priority=10.0))
+    all_cards.append(BPEvent(name=f"change_color", priority=10.0))
+    all_cards.append(BPEvent(name=f"change_color", priority=10.0))
 
     # Add Regular Taki cards - 2 of each color
     for color in colors:
@@ -538,7 +538,7 @@ def is_taki_card_event(event: BPEvent) -> bool:
     """Check if event is a regular taki card (not super taki)"""
     result =  isinstance(event, BPEvent) and re.match(r"^p_\d+_taki_(red|blue|green)$", event.name) is not None
     # if result:
-    #     logger.debug(f"[DEBUG is_taki_card_event] ✓ Regular TAKI detected: {event.name}")
+    #     logger.debug(f"[DEBUG is_taki_card_event] Regular TAKI detected: {event.name}")
     return result
 
 def is_any_taki_event(e):
@@ -715,7 +715,7 @@ def select_color_for_change_color_card(index, card_events):
         return "red"  # No colored cards, default to red
 
     # Return first color (in priority order) with max count
-    for color in ["red", "blue", "green"]:
+    for color in COLORS:
         if color_counts[color] == max_count:
             return color
 
@@ -748,13 +748,13 @@ def is_stop_card_event(event: BPEvent) -> bool:
     return False
 
 def extract_player_id(event: BPEvent) -> Optional[int]:
-                """Extract player ID from event name (e.g., p_0_card -> 0)"""
-                player_reg_exp = re.compile(r"^p_(\d+)_")
-                m = player_reg_exp.match(event.name)
-                if m:
-                    return int(m.group(1))
-                else:
-                    return None
+    """Extract player ID from event name (e.g., p_0_card -> 0)"""
+    player_reg_exp = re.compile(r"^p_(\d+)_")
+    m = player_reg_exp.match(event.name)
+    if m:
+        return int(m.group(1))
+    else:
+        return None
 
 
 def is_super_taki_event(e):
@@ -805,14 +805,14 @@ def player_behavior(index, num_of_cards=2):
                 # 🔍 DEBUG: TAKI sequence start
                 taki_type = "Regular TAKI" if is_taki_card_event(card_event) else "Super TAKI"
                 logger.debug(f"{'=' * 60}")
-                logger.debug(f"[PLAYER_{index}] 🎴 {taki_type} SEQUENCE STARTING: {card_event.name}")
+                logger.debug(f"[PLAYER_{index}] {taki_type} SEQUENCE STARTING: {card_event.name}")
                 logger.debug(f"[PLAYER_{index}] Removing TAKI from hand")
                 logger.debug(f"[PLAYER_{index}] Adding closed_taki to possible actions")
                 logger.debug(f"{'=' * 60}")
 
                 card_events.remove(card_event) # Remove TAKI / Super_TAKI from player hand
                 
-				# Add closed_taki event to the possible actions of the player, the correct priority here is crucial!
+                # Add closed_taki event to the possible actions of the player, the correct priority here is crucial!
                 closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
                 card_events.append(closed_taki_event)
 
@@ -823,18 +823,23 @@ def player_behavior(index, num_of_cards=2):
 
                     if card_event.name != f"p_{index}_closed_taki":
                         cards_played_in_taki.append(card_event.name)
-                        logger.debug(f"[PLAYER_{index}] 🃏 Card played in TAKI: {card_event.name}")
+                        logger.debug(f"[PLAYER_{index}] Card played in TAKI: {card_event.name}")
 
                     card_events.remove(card_event)
                     if card_event.name == f"p_{index}_closed_taki":
                         # 🔍 DEBUG: TAKI sequence end
                         logger.debug(f"{'=' * 60}")
-                        logger.debug(f"[PLAYER_{index}] 🛑 TAKI SEQUENCE ENDING")
+                        logger.debug(f"[PLAYER_{index}] TAKI SEQUENCE ENDING")
                         logger.debug(f"[PLAYER_{index}] Cards played: {cards_played_in_taki}")
                         logger.debug(f"[PLAYER_{index}] Total cards in sequence: {len(cards_played_in_taki)}")
                         logger.debug(f"{'=' * 60}")
                         break
 
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            elif is_change_color_event(card_event):
+                card_events.remove(card_event)
+                selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                selected_color_event = yield bp.sync(request=selected_color_events)
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
             else:
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
@@ -847,6 +852,300 @@ def player_behavior(index, num_of_cards=2):
         else: # else announce that you have finished your turn.
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
+
+def add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, original_priority, card_events):
+    """
+    Add a card event to player's hand with priority adjustment for TAKI cards.
+
+    TAKI cards receive priority 5.0 (lower number = higher priority) to encourage playing them,
+    while other cards keep their original priority (typically 10.0).
+    """
+    if "taki" in card_name:
+        adjusted_priority = 5.0
+        logger.debug(
+            f"[STRATEGY_TAKI] Player {index}: Adding TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
+        card_events.append(BPEvent(card_name, priority=adjusted_priority))
+    else:
+        logger.debug(
+            f"[STRATEGY_TAKI] Player {index}: Adding regular card '{card_name}' with standard priority {original_priority}")
+        card_events.append(BPEvent(card_name, priority=original_priority))
+
+    # Summary log of current hand composition
+    taki_count = sum(1 for e in card_events if "taki" in e.name)
+    logger.debug(
+        f"[STRATEGY_TAKI] Player {index}: Hand now contains {len(card_events)} cards ({taki_count} TAKI cards)")
+
+
+@bp.thread
+def basic_strategy_taki(index, num_of_cards=2):
+    """
+    B-thread implementing basic TAKI strategy: prioritize playing TAKI cards.
+
+    This strategy adjusts event priorities so TAKI/Super TAKI cards are preferred
+    over regular cards during event selection.
+    """
+    # logger.debug(f"[STRATEGY_TAKI] Player {index}: B-thread started, waiting for initial deal")
+
+    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+    # logger.debug(f"[STRATEGY_TAKI] Player {index}: deal of cards to player started, receiving {num_of_cards} cards")
+
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+
+    # Receive initial hand
+    for i in range(num_of_cards):
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        # logger.debug(f"[STRATEGY_TAKI] Player {index}: Received card #{i + 1}/{num_of_cards}: {card_name}")
+        add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, deal_card_event.priority,
+                                                                  card_events)
+
+    # logger.debug(f"[STRATEGY_TAKI] Player {index}: Initial hand complete. Total cards: {len(card_events)}")
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    # logger.debug(f"[STRATEGY_TAKI] Player {index}: Game started! Beginning play with strategy-adjusted priorities")
+
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    no_more_cards_event = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+    next_turn = BPEvent("next_turn", priority=10.0)
+
+    turn_number = 0
+    while True:
+        turn_number += 1
+
+        taki_cards = [e.name for e in card_events if "taki" in e.name]
+        regular_cards = [e.name for e in card_events if "taki" not in e.name]
+        logger.debug(f"[STRATEGY_TAKI] P{index} Turn #{turn_number} | Hand: {len(card_events)} cards ({len(taki_cards)} TAKI)")
+
+        # Request a card to play (or wait-for draw_card)
+        card_event = yield bp.sync(request=card_events, waitFor=[draw_card_event])
+
+        logger.debug(f"[STRATEGY_TAKI] P{index} → {card_event.name} (priority {card_event.priority})")
+
+        if is_regular_card_event(card_event):
+            # logger.debug(f"[STRATEGY_TAKI] Player {index}: Played regular card: {card_event.name}")
+            card_events.remove(card_event)
+
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                taki_type = "Regular TAKI" if is_taki_card_event(card_event) else "Super TAKI"
+                logger.debug(f"[STRATEGY_TAKI] Player {index}: {taki_type} PLAYED! Strategy success - prioritized TAKI card was selected")
+                # logger.debug(f"[STRATEGY_TAKI] Player {index}: Entering TAKI sequence handling")
+
+                # Remove TAKI from hand
+                card_events.remove(card_event)
+
+                # Add closed_taki event
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+
+                cards_played_in_taki = []
+
+                # Handle TAKI sequence
+                while True:
+                    card_event = yield bp.sync(waitFor=card_events) # if we want to prefer other cards during taki, change to request=card_events
+
+                    if card_event.name != f"p_{index}_closed_taki":
+                        cards_played_in_taki.append(card_event.name)
+                        logger.debug(f"[STRATEGY_TAKI] Player {index}: 🃏 Card played in TAKI: {card_event.name}")
+
+                    card_events.remove(card_event)
+
+                    if card_event.name == f"p_{index}_closed_taki":
+                        # logger.debug(f"[STRATEGY_TAKI] Player {index}: 🛑 TAKI sequence closed")
+                        logger.debug(f"[STRATEGY_TAKI] Player {index}: Cards played in sequence: {cards_played_in_taki}")
+                        # logger.debug(f"[STRATEGY_TAKI] Player {index}: Total cards in TAKI: {len(cards_played_in_taki)}")
+                        break
+
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                # logger.debug(f"[STRATEGY_TAKI] Player {index}: done_post_action received after TAKI sequence")
+            else:
+                # Other action cards (stop, change_color, etc.)
+                logger.debug(f"[STRATEGY_TAKI] Player {index}: Played action card: {card_event.name}")
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                card_events.remove(card_event)
+
+        elif is_draw_card_event(card_event):
+            logger.debug(f"[STRATEGY_TAKI] Player {index}: Drawing a card (no playable cards available)")
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            # logger.debug(f"[STRATEGY_TAKI] Player {index}: Drew card: {card_name}")
+            add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, deal_card_event.priority,
+                                                                      card_events)
+
+        # Wait for turn to complete
+        last_event = yield bp.sync(waitFor=[ no_more_cards_event, next_turn ])
+
+        if "next_turn" in last_event.name:
+            taki_count = sum(1 for e in card_events if "taki" in e.name)
+            logger.debug(f"[STRATEGY_TAKI] P{index} | Remaining: {len(card_events)} cards ({taki_count} TAKI)")
+            continue
+        elif "no_more_cards" in last_event.name:
+            logger.debug(f"[STRATEGY_TAKI] Player {index}: 🏆 NO MORE CARDS! Game over for this player")
+            break
+
+    logger.debug(f"[STRATEGY_TAKI] Player {index}: B-thread terminated after {turn_number} turns")
+
+
+def add_event_to_card_events_according_to_basic_strategy_taki_2(index, card_name, original_priority, card_events):
+    """
+    Add a card event to player's hand with priority adjustment for TAKI cards.
+    If you have both TAKI and Super TAKI cards, prioritize TAKI higher.
+    TAKI will receive a priority of 4.0, Super TAKI 6.0, and
+    other cards keep their original priority.
+    """
+    if "super_taki" in card_name :
+        adjusted_priority = 6.0
+        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding SUPER TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
+        card_events.append(BPEvent(card_name, priority=adjusted_priority))
+    elif "taki_" in card_name:
+        adjusted_priority = 4.0
+        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
+        card_events.append(BPEvent(card_name, priority=adjusted_priority))
+    else:
+        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding regular card '{card_name}' with standard priority {original_priority}")
+        card_events.append(BPEvent(card_name, priority=original_priority))
+
+
+@bp.thread
+def basic_strategy_taki_and_super_taki(index, num_of_cards=2):
+    """
+      B-thread implementing TAKI/SuperTAKI priority strategy.
+
+      Priority hierarchy (lower number = higher priority):
+      - Regular TAKI: 4.0 (highest - start sequences with these)
+      - Super TAKI: 6.0 (medium - prefer during sequences)
+      - Regular cards: 10.0 (lowest - play when no TAKI available)
+
+      This means:
+      1. When choosing which TAKI to play: prefer Regular TAKI
+      2. During TAKI sequence: prefer Super TAKI over regular cards
+      """
+    # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: B-thread started, waiting for initial deal")
+
+    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+    # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: deal of cards to player started, receiving {num_of_cards} cards")
+
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+
+    # Receive initial hand
+    for i in range(num_of_cards):
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Received card #{i + 1}/{num_of_cards}: {card_name}")
+        add_event_to_card_events_according_to_basic_strategy_taki_2(index, card_name, deal_card_event.priority,
+                                                                    card_events)
+    taki_count = sum(1 for e in card_events if "taki" in e.name)
+    logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Initial hand contains {len(card_events)} cards ({taki_count} TAKI cards)")
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Game started! Beginning play with strategy-adjusted priorities")
+
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    no_more_cards_event = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+    next_turn = BPEvent("next_turn", priority=10.0)
+
+    turn_number = 0
+    while True:
+        turn_number += 1
+
+        taki_cards = [e.name for e in card_events if "taki" in e.name]
+        regular_cards = [e.name for e in card_events if "taki" not in e.name]
+        logger.debug(f"[STRATEGY_TAKI_2] P{index} Turn #{turn_number} | Hand: {len(card_events)} cards ({len(taki_cards)} TAKI)")
+
+        card_event = yield bp.sync(request=card_events, waitFor=[draw_card_event])
+
+        logger.debug(f"[STRATEGY_TAKI_2] P{index} -> {card_event.name} (priority {card_event.priority})")
+
+        if is_regular_card_event(card_event):
+            # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Played regular card: {card_event.name}")
+            card_events.remove(card_event)
+
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                taki_type = "Regular TAKI" if is_taki_card_event(card_event) else "Super TAKI"
+                logger.debug(
+                    f"[STRATEGY_TAKI_2] Entering TAKI sequence "
+                    f"Player{index} chose {taki_type}: {card_event.name} "
+                    f"(prio={getattr(card_event, 'priority', None)})"
+                )
+
+                # Remove TAKI from hand
+                card_events.remove(card_event)
+
+                # Add closed_taki event
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+
+                cards_played_in_taki = []
+
+                # Handle TAKI sequence
+                while True:
+                    card_event = yield bp.sync(request=card_events) # We want to keep the priority of SUPER TAKI, change to request=card_events
+
+                    if card_event.name != f"p_{index}_closed_taki":
+                        cards_played_in_taki.append(card_event.name)
+                        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}:  Card played in TAKI: {card_event.name}")
+
+                    card_events.remove(card_event) # this removes also closed_taki when played
+
+                    if card_event.name == f"p_{index}_closed_taki":
+                        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}:  TAKI sequence closed")
+                        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Cards played in sequence: {cards_played_in_taki}")
+                        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Total cards in TAKI: {len(cards_played_in_taki)}")
+                        break
+
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: done_post_action received after TAKI sequence")
+            else:
+                # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Played action card: {card_event.name}")
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                card_events.remove(card_event)
+
+        elif is_draw_card_event(card_event):
+            logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Drawing a card...")
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Drew card: {card_name}")
+            add_event_to_card_events_according_to_basic_strategy_taki_2(index, card_name, deal_card_event.priority,
+                                                                      card_events)
+
+        # Wait for turn to complete
+        last_event = yield bp.sync(waitFor=[ no_more_cards_event, next_turn ])
+
+        if "next_turn" in last_event.name:
+            taki_count = sum(1 for e in card_events if "taki" in e.name)
+            logger.debug(f"[STRATEGY_TAKI_2] P{index} | Remaining: {len(card_events)} cards ({taki_count} TAKI)")
+            continue
+        elif "no_more_cards" in last_event.name:
+            logger.debug(f"[STRATEGY_TAKI_2] Player {index}: NO MORE CARDS! Game over for this player")
+            break
+
+    logger.debug(f"[STRATEGY_TAKI_2] Player {index}: B-thread terminated after {turn_number} turns")
+
+def is_no_more_cards_event(event: BPEvent) -> bool:
+    return isinstance(event, BPEvent) and re.match(r"^p_\d+_no_more_cards$", event.name) is not None
+
+@bp.thread
+def strategy_block_super_taki_during_regular_taki(index):
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    logger.debug(f"[STRATEGY_BLOCK_SUPER_TAKI] Player {index}: Game started! Beginning play with Super TAKI blocking strategy")
+
+    closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+    super_taki_event = BPEvent(f"p_{index}_super_taki")
+    player_index_event_set_or_no_more_cards = bp.EventSetList([all_player_index_events(index), bp.EventSet(is_no_more_cards_event)])
+
+    while True:
+        last_event = yield bp.sync(waitFor=player_index_event_set_or_no_more_cards)
+        if is_taki_card_event(last_event):
+            logger.debug(f"[STRATEGY_BLOCK_SUPER_TAKI] Player {index}:  Regular TAKI played, blocking Super TAKI until closed_taki")
+            last_event = yield bp.sync(waitFor=closed_taki_event, block=super_taki_event)
+            if last_event.name == f"p_{index}_closed_taki":
+                logger.debug(f"[STRATEGY_BLOCK_SUPER_TAKI] Player {index}:  TAKI sequence closed")
+        elif is_no_more_cards_event(last_event):
+            logger.debug(f"[STRATEGY_BLOCK_SUPER_TAKI]: NO MORE CARDS! Game over.")
+            break
 
 
 def extract_card_color(event: BPEvent) -> str:
@@ -894,22 +1193,23 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
             card_color = event.name[stop_str_index + 5:]
             return card_color, "STOP"
         else:
-            plus_2_str_index = event.name.find("plus_2")
-            if plus_2_str_index != -1:
-                card_color = event.name[plus_2_str_index + 7:]
-                return card_color, "PLUS_2"
+            change_color_index = event.name.find("change_color") # to handle the abstract change color card
+            if change_color_index != -1 and "selected_" not in event.name:
+                return "", "CHANGE_COLOR"
             else:
-                change_color_index = event.name.find("change_color")
-                if change_color_index != -1:
-                    # Extract color from patterns like "change_color_red" or "p_0_change_color_red"
-                    parts = event.name.split("_")
-                    if len(parts) >= 3 and parts[-2] == "color":
-                        color = parts[-1]
-                        if color in ["red", "blue", "green"]:
-                            return color ,"CHANGE_COLOR"
-                        else:
-                            logger.debug("Received change_color event with no color specified, defaulting to empty string.")
-                            return "", "CHANGE_COLOR"
+                selected_change_color_index = event.name.find("selected_") # to handle the selected changed color
+                if selected_change_color_index != -1:
+                    # Extract color from patterns like "selected_red" or "selected_blue"
+                    color = [c for c in COLORS if c in event.name][0] if any(c in event.name for c in COLORS) else None
+                    if color in COLORS:
+                        return color, "CHANGE_COLOR"
+                    else:
+                         # Invalid color selection - this should never happen in a correct game
+                        error_msg = (f"Invalid color selection in event '{event.name}'. "
+                                    f"Expected 'selected_{{color}}' where color is one of {COLORS}, "
+                                    f"but extracted color was '{color}'")
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
                 else:
                     super_taki_index = event.name.find("super_taki")
                     if super_taki_index != -1:
@@ -919,15 +1219,16 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
                         if taki_str_index != -1:
                             parts = event.name.split("_")
                             color = parts[-1]
-                            if color in ["red", "blue", "green"]:
-                                logger.debug(f"[DEBUG extract_card_color_and_type] Regular TAKI: {event.name} → Color: {color}, Type: TAKI")
+                            if color in COLORS:
+                                # logger.debug(f"[DEBUG extract_card_color_and_type] Regular TAKI: {event.name} -> Color: {color}, Type: TAKI")
                                 return color, "TAKI"
                         else: # card is unmatched - return None, None
+                            logger.error(f"[DEBUG extract_card_color_and_type] card was unmatched! {event.name}")
                             return None, None
 
 
 def is_color_card_event(event: BPEvent) -> bool:
-    for color in ["blue", "red", "green"]:
+    for color in COLORS:
         if color in event.name:
             return True
     return False
@@ -949,7 +1250,7 @@ def enforce_turns(num_of_players=2):
         logger.debug(f"[ENFORCE_TURNS] Event received: {last_event.name}")
 
         if last_event.name.startswith("next_turn"): # 🔍 DEBUG: Turn change
-            logger.debug(f"[ENFORCE_TURNS] Turn change: Player {current_player} → Player {next_player}")
+            logger.debug(f"[ENFORCE_TURNS] Turn change: Player {current_player} -> Player {next_player}")
             current_player = next_player
             next_player = (next_player + 1) % num_of_players
 
@@ -961,10 +1262,10 @@ def enforce_turns(num_of_players=2):
 
         if is_any_taki_event(last_event):# Super TAKI or TAKI played
             taki_type = "Regular TAKI" if is_taki_card_event(last_event) else "Super TAKI"
-            logger.debug(f"[ENFORCE_TURNS] 🎴 {taki_type} by Player {current_player}, requesting done_post_action")
+            logger.debug(f"[ENFORCE_TURNS] {taki_type} by Player {current_player}, requesting done_post_action")
             yield bp.sync(request=BPEvent("done_post_action", priority=17.5), # priority here is higher than draw_card, but lower than closed_taki
                                   block=all_other_player_cards_besides_special_cards(current_player))
-            logger.debug(f"[ENFORCE_TURNS] ✓ done_post_action completed for {taki_type}")
+            logger.debug(f"[ENFORCE_TURNS] done_post_action completed for {taki_type}")
 
 def get_taki_mode_color(last_event, card_color):
 
@@ -974,13 +1275,13 @@ def get_taki_mode_color(last_event, card_color):
     if is_taki_card_event(last_event):
         card_color, card_type = extract_card_color_and_type(last_event)
         logger.debug(f"{'=' * 60}")
-        logger.debug(f"[ENFORCE_RULES] 🎴 Regular TAKI detected: {last_event.name}")
+        logger.debug(f"[ENFORCE_RULES] Regular TAKI detected: {last_event.name}")
         logger.debug(f"[ENFORCE_RULES] Color determined by TAKI card: {card_color}")
         logger.debug(f"[ENFORCE_RULES] Blocking all non-{card_color} cards")
         logger.debug(f"{'=' * 60}")
     else:
         logger.debug(f"{'=' * 60}")
-        logger.debug(f"[ENFORCE_RULES] 🌟 Super TAKI detected: {last_event.name}")
+        logger.debug(f"[ENFORCE_RULES] Super TAKI detected: {last_event.name}")
         logger.debug(f"[ENFORCE_RULES] Color inherited from previous card: {card_color}")
         logger.debug(f"[ENFORCE_RULES] Blocking all non-{card_color} cards")
         logger.debug(f"{'=' * 60}")
@@ -995,7 +1296,9 @@ def enforce_card_placement_rules():
     yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     card_color, card_type = extract_card_color_and_type(event=last_event)
-    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(), init_selected_color_or_type_event_set(card_color,card_type))
+    different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(),
+                                                                 init_selected_color_or_type_event_set(card_color,
+                                                                                                       card_type))
     last_event = yield bp.sync(waitFor=general_player_event_set, block=different_colors_or_types_event_set)
 
     while True:
@@ -1006,12 +1309,15 @@ def enforce_card_placement_rules():
                                                                              card_color, card_type))
 
         elif is_change_color_event(last_event):
-            card_color, card_type = extract_card_color_and_type(event=last_event)
+            selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+            selected_color_event = yield bp.sync(waitFor=selected_color_events)
+            card_color, _ = extract_card_color_and_type(event=selected_color_event)
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
             yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
 
         elif is_stop_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
+            logger.debug(f"[ENFORCE_RULES] Stop card played: updating rules to match color={card_color} OR type={card_type}")
             different_colors_or_types_event_set = bp.EventSetsDifference(
                 all_player_events(),
                 init_selected_color_or_type_event_set(card_color, card_type)
@@ -1027,12 +1333,13 @@ def enforce_card_placement_rules():
             logger.debug(f"[ENFORCE_RULES] Previous placement color={card_color}")
             logger.debug(f"{'=' * 60}")
 
-            card_color = get_taki_mode_color(last_event, card_color) # Get the color for the TAKI mode
+            _, taki_start_type = extract_card_color_and_type(last_event) # We only need the type to track last_taki_card_type
 
+            card_color = get_taki_mode_color(last_event, card_color) # Get the color for the TAKI mode
             strict_color_block = create_taki_color_block(card_color)
 
             last_taki_card_color = card_color
-            last_taki_card_type = card_type
+            last_taki_card_type = taki_start_type
 
             taki_sequence_cards = []
 
@@ -1053,18 +1360,33 @@ def enforce_card_placement_rules():
                 # Check if TAKI sequence ended
                 if taki_event.name == "done_post_action":
                     logger.debug(f"{'=' * 60}")
-                    logger.debug(f"[ENFORCE_RULES] 🛑 TAKI sequence ended")
+                    logger.debug(f"[ENFORCE_RULES] TAKI sequence ended")
                     logger.debug(f"[ENFORCE_RULES] Cards played in sequence: {taki_sequence_cards}")
                     logger.debug(f"[ENFORCE_RULES] Last card color: {last_taki_card_color}, type: {last_taki_card_type}")
                     logger.debug(f"{'=' * 60}")
                     break
 
                 # Update tracking with each card played during TAKI
-                if is_regular_card_event(taki_event) or is_change_color_event(taki_event) or is_stop_card_event(taki_event):
+                if is_super_taki_event(taki_event):
+                    taki_sequence_cards.append(taki_event.name)
+                    # Color remains unchanged for Super TAKI
+                    _, last_taki_card_type = extract_card_color_and_type(taki_event)
+                    logger.debug(
+                        f"[ENFORCE_RULES] SuperTAKI Card accepted during TAKI: {taki_event.name} "
+                        f"(color={last_taki_card_color}, type={last_taki_card_type})"
+                    )
+                elif is_taki_card_event(taki_event):
                     taki_sequence_cards.append(taki_event.name)
                     last_taki_card_color, last_taki_card_type = extract_card_color_and_type(taki_event)
                     logger.debug(
-                        f"[ENFORCE_RULES] ✓ Card accepted during TAKI: {taki_event.name} "
+                        f"[ENFORCE_RULES] TAKI Card accepted during TAKI: {taki_event.name} "
+                        f"(color={last_taki_card_color}, type={last_taki_card_type})"
+                    )
+                elif is_regular_card_event(taki_event) or is_change_color_event(taki_event) or is_stop_card_event(taki_event):
+                    taki_sequence_cards.append(taki_event.name)
+                    last_taki_card_color, last_taki_card_type = extract_card_color_and_type(taki_event)
+                    logger.debug(
+                        f"[ENFORCE_RULES] Card accepted during TAKI: {taki_event.name} "
                         f"(color={last_taki_card_color}, type={last_taki_card_type})"
                     )
                 else:
@@ -1200,6 +1522,9 @@ def init_b_program():
     b_program = bp.BProgram(bthreads=[game_manager(),
                                       deal_cards(2, NUM_OF_CARDS),
                                       player_behavior(0, NUM_OF_CARDS),
+                                      # basic_strategy_taki(0, NUM_OF_CARDS),
+                                      basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
+                                      # strategy_block_super_taki_during_regular_taki(0),
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
                                       enforce_card_placement_rules(),
