@@ -19,7 +19,7 @@ COLORS = ["red", "blue", "green"]
 # Control the randomness of card dealing
 SEED = 2 # good seeds for change color: 2, 4, a bug in 5
 
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 
 current_time = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
@@ -1223,7 +1223,7 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
                                 # logger.debug(f"[DEBUG extract_card_color_and_type] Regular TAKI: {event.name} -> Color: {color}, Type: TAKI")
                                 return color, "TAKI"
                         else: # card is unmatched - return None, None
-                            logger.error(f"[DEBUG extract_card_color_and_type] card was unmatched! {event.name}")
+                            # logger.debug(f"[DEBUG extract_card_color_and_type] card was unmatched! {event.name}")
                             return None, None
 
 
