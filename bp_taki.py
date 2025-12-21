@@ -1523,7 +1523,7 @@ def init_b_program():
                                       deal_cards(2, NUM_OF_CARDS),
                                       player_behavior(0, NUM_OF_CARDS),
                                       # basic_strategy_taki(0, NUM_OF_CARDS),
-                                      basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
+                                      # basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
                                       # strategy_block_super_taki_during_regular_taki(0),
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(),
@@ -1535,12 +1535,28 @@ def init_b_program():
                             listener=LogBProgramRunnerListener(logger=logger))
     return b_program
 
+def build_b_program(
+    bthreads,
+    event_selection_strategy,
+    listener,
+):
+    return bp.BProgram(
+        bthreads=bthreads,
+        event_selection_strategy=event_selection_strategy,
+        listener=listener,
+    )
+
+
+def run_bp_program(b_program, configure_logger: bool = True):
+    if configure_logger:
+        setup_logger()
+        logger.info("Starting Taki Game BProgram Execution")
+    b_program.run()
+
 
 def regular_execution_of_bp_program():
-    setup_logger()
-    logger.info("Starting Taki Game BProgram Execution")
     b_program = init_b_program()
-    b_program.run()
+    run_bp_program(b_program, configure_logger=True)
 
 
 def verify_with_dfs():
