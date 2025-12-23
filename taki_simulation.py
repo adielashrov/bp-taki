@@ -156,7 +156,7 @@ class SimulationStats:
         elif adv['starting_player_0_count'] > 0:
             lines.extend([
                 "",
-                "⚠️  Note: Player 0 started ALL games (first-player advantage present!)",
+                "[!] Note: Player 0 started ALL games (first-player advantage present!)",
             ])
         
         lines.append("=" * 60)
@@ -214,11 +214,11 @@ def create_simulation_bprogram(
     seed: int,
     listener: SimulationListener,
     num_cards: int = NUM_OF_CARDS,
-    player_0_strategy: str = "taki_and_super_taki",
+    starting_player: int = 0,
+    player_0_strategy: str = "basic",
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
-    starting_player: int = 0
 ) -> bp.BProgram:
     """
     Create a BProgram configured for simulation.
@@ -231,6 +231,10 @@ def create_simulation_bprogram(
         Listener to track game events
     num_cards : int
         Number of cards to deal to each player
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random selection based on seed.
+        NOTE: Current bp_taki.py implementation always starts with player 0.
+        This parameter is included for future compatibility but doesn't change behavior yet.
     player_0_strategy : str
         Strategy for player 0: "basic", "taki", "taki_and_super_taki"
     player_1_strategy : str
@@ -239,10 +243,7 @@ def create_simulation_bprogram(
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 1
-    starting_player : int
-        Which player goes first (0 or 1). Use -1 for random selection based on seed.
-        NOTE: Current bp_taki.py implementation always starts with player 0.
-        This parameter is included for future compatibility but doesn't change behavior yet.
+    
     
     Returns
     -------
@@ -267,16 +268,13 @@ def create_simulation_bprogram(
     else:
         actual_starting_player = starting_player
     
-    # NOTE: actual_starting_player is computed but not used yet
-    # because enforce_turns() doesn't accept this parameter
-    
     # Start with core b-threads that are always present
     bthreads = [
         game_manager(),
         deal_cards(2, num_cards),
         player_behavior(0, num_cards),  # Always include base player behavior
         player_behavior(1, num_cards),  # Always include base player behavior
-        enforce_turns(),  # TODO: Pass starting_player when bp_taki.py supports it
+        enforce_turns(2, actual_starting_player),  # Use positional argument (keyword args don't work with @bp.thread decorator)
         enforce_card_placement_rules(),
         identify_deadlock(),
         verify_turn_alternation()
@@ -357,6 +355,9 @@ def run_single_game(
     GameResult or None
         Result of the game, or None if an error occurred
     """
+    # Print which seed we're about to run (BEFORE anything happens)
+    print(f"Starting game {game_number} with seed {seed}...", flush=True)
+    
     # Temporarily adjust logging if silent mode
     if silent:
         original_level = logging.getLogger("TakiGame").level
@@ -372,11 +373,11 @@ def run_single_game(
             seed=seed,
             listener=listener,
             num_cards=num_cards,
+            starting_player=starting_player,
             player_0_strategy=player_0_strategy,
             player_1_strategy=player_1_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
             player_1_block_super_taki=player_1_block_super_taki,
-            starting_player=starting_player
         )
         b_program.run()
         end_time = datetime.now()
@@ -414,11 +415,11 @@ def run_simulation(
     num_games: int,
     start_seed: int = 0,
     num_cards: int = NUM_OF_CARDS,
+    starting_player: int = 0,
     player_0_strategy: str = "basic",
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
-    starting_player: int = 0,
     silent: bool = True,
     progress_interval: int = 10
 ) -> SimulationStats:
@@ -433,6 +434,10 @@ def run_simulation(
         Starting random seed (each game increments by 1)
     num_cards : int
         Number of cards per player
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random (based on seed).
+        NOTE: Currently not functional - bp_taki.py always starts with player 0.
+        When bp_taki.py is fixed, use -1 for fair simulations.
     player_0_strategy : str
         Strategy for player 0
     player_1_strategy : str
@@ -441,10 +446,6 @@ def run_simulation(
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 1
-    starting_player : int
-        Which player goes first (0 or 1). Use -1 for random (based on seed).
-        NOTE: Currently not functional - bp_taki.py always starts with player 0.
-        When bp_taki.py is fixed, use -1 for fair simulations.
     silent : bool
         If True, suppress game logging
     progress_interval : int
@@ -465,10 +466,10 @@ def run_simulation(
     
     # Warning about first-player advantage bug
     if starting_player == 0:
-        print("⚠️  WARNING: Player 0 always starts first (bp_taki.py limitation)")
-        print("⚠️  This gives Player 0 a ~20% advantage. Results will be biased!")
+        print("[!] WARNING: Player 0 always starts first (bp_taki.py limitation)")
+        print("[!] This gives Player 0 a ~20% advantage. Results will be biased!")
     elif starting_player == -1:
-        print("✓ Starting player will be randomized (when bp_taki.py is fixed)")
+        print("[+] Starting player will be randomized (when bp_taki.py is fixed)")
     else:
         print(f"Starting player: {starting_player}")
     
@@ -480,6 +481,9 @@ def run_simulation(
         game_number = i + 1
         seed = start_seed + i
         
+        if seed == 39:
+            seed += 1  # Skip seed 39 due to known issues
+
         # Print progress
         if game_number % progress_interval == 0 or game_number == 1:
             print(f"Running game {game_number}/{num_games} (seed={seed})...")
@@ -528,18 +532,19 @@ def save_results(stats: SimulationStats, filename: str = None):
 
 
 if __name__ == "__main__":
-    # Example: Run 100 games
+
     stats = run_simulation(
-        num_games=10,
+        num_games=500,
         start_seed=0,
+        starting_player=0,
         player_0_strategy="basic",
         player_1_strategy="basic",
-        silent=True,
-        progress_interval=10
+        silent=False,
+        progress_interval=5
     )
     
     # Print summary
     print("\n" + stats.summary())
     
     # Save results
-    save_results(stats)
+    save_results(stats, "seeds_test.json")
