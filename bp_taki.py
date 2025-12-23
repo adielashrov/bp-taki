@@ -1235,13 +1235,13 @@ def is_color_card_event(event: BPEvent) -> bool:
 
 
 @bp.thread
-def enforce_turns(num_of_players=2):
+def enforce_turns(num_of_players=2, starting_player=0):
     next_or_stop_or_taki_lst = [BPEvent("next_turn", priority=10.0), bp.EventSet(is_stop_card_event), bp.EventSet(is_any_taki_event)]
     next_turn_or_stop_or_taki_event_set = bp.EventSetList(next_or_stop_or_taki_lst)
 
     yield bp.sync(waitFor=BPEvent("start_game"))
 
-    current_player = 0
+    current_player = starting_player
     next_player = (current_player + 1) % num_of_players
     while True: # We should block the other player from playing out of turn in all the while loop.
         last_event = yield bp.sync(waitFor=next_turn_or_stop_or_taki_event_set,
