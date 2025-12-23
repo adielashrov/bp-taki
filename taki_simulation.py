@@ -38,6 +38,7 @@ class GameResult:
     seed: int
     winner: int  # 0 or 1
     event_count: int
+    starting_player: int = 0  # Which player went first (0 or 1)
     duration_seconds: float = 0.0
     
     def to_dict(self) -> dict:
@@ -47,6 +48,7 @@ class GameResult:
             'seed': self.seed,
             'winner': self.winner,
             'event_count': self.event_count,
+            'starting_player': self.starting_player,
             'duration_seconds': self.duration_seconds
         }
 
@@ -87,6 +89,41 @@ class SimulationStats:
         wins = self.player_0_wins if player == 0 else self.player_1_wins
         return (wins / self.total_games) * 100
     
+    def starting_player_advantage(self) -> Dict[str, any]:
+        """
+        Calculate statistics about first-player advantage.
+        
+        Returns
+        -------
+        dict
+            Statistics about starting player wins, including:
+            - 'starting_player_0_count': Games where player 0 started
+            - 'starting_player_1_count': Games where player 1 started
+            - 'wins_when_starting': How often the starting player won
+            - 'starter_win_rate': Percentage of games won by whoever started
+        """
+        if not self.results:
+            return {
+                'starting_player_0_count': 0,
+                'starting_player_1_count': 0,
+                'wins_when_starting': 0,
+                'starter_win_rate': 0.0
+            }
+        
+        p0_started = sum(1 for r in self.results if r.starting_player == 0)
+        p1_started = sum(1 for r in self.results if r.starting_player == 1)
+        
+        # Count how many times the starting player won
+        starter_wins = sum(1 for r in self.results if r.winner == r.starting_player)
+        starter_win_rate = (starter_wins / len(self.results) * 100) if self.results else 0.0
+        
+        return {
+            'starting_player_0_count': p0_started,
+            'starting_player_1_count': p1_started,
+            'wins_when_starting': starter_wins,
+            'starter_win_rate': starter_win_rate
+        }
+    
     def summary(self) -> str:
         """Generate a summary string of the statistics."""
         lines = [
@@ -104,8 +141,25 @@ class SimulationStats:
             ),
             "",
             f"Average Events per Game: {self.average_events_per_game:.1f}",
-            "=" * 60
         ]
+        
+        # Add starting player advantage analysis if games have varied starting players
+        adv = self.starting_player_advantage()
+        if adv['starting_player_0_count'] > 0 and adv['starting_player_1_count'] > 0:
+            lines.extend([
+                "",
+                "Starting Player Analysis:",
+                f"  Games where P0 started: {adv['starting_player_0_count']}",
+                f"  Games where P1 started: {adv['starting_player_1_count']}",
+                f"  Starting player won: {adv['wins_when_starting']}/{self.total_games} ({adv['starter_win_rate']:.1f}%)",
+            ])
+        elif adv['starting_player_0_count'] > 0:
+            lines.extend([
+                "",
+                "⚠️  Note: Player 0 started ALL games (first-player advantage present!)",
+            ])
+        
+        lines.append("=" * 60)
         return "\n".join(lines)
     
     def to_dict(self) -> dict:
@@ -118,6 +172,7 @@ class SimulationStats:
             'player_1_win_rate': self.win_rate(1),
             'errors': self.errors,
             'average_events_per_game': self.average_events_per_game,
+            'starting_player_advantage': self.starting_player_advantage(),
             'results': [r.to_dict() for r in self.results]
         }
 
@@ -258,7 +313,7 @@ def create_simulation_bprogram(
         listener=listener
     )
     
-    return b_program
+    return b_program, actual_starting_player
 
 
 def run_single_game(
@@ -269,6 +324,7 @@ def run_single_game(
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
+    starting_player: int = 0,
     silent: bool = True
 ) -> Optional[GameResult]:
     """
@@ -290,6 +346,9 @@ def run_single_game(
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 1
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random (based on seed).
+        NOTE: Currently not functional - bp_taki.py always starts with player 0.
     silent : bool
         If True, suppress logging output
     
@@ -309,14 +368,15 @@ def run_single_game(
         
         # Create and run the b-program
         start_time = datetime.now()
-        b_program = create_simulation_bprogram(
+        b_program, actual_starting_player = create_simulation_bprogram(
             seed=seed,
             listener=listener,
             num_cards=num_cards,
             player_0_strategy=player_0_strategy,
             player_1_strategy=player_1_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
-            player_1_block_super_taki=player_1_block_super_taki
+            player_1_block_super_taki=player_1_block_super_taki,
+            starting_player=starting_player
         )
         b_program.run()
         end_time = datetime.now()
@@ -335,6 +395,7 @@ def run_single_game(
             seed=seed,
             winner=winner,
             event_count=listener.get_event_count(),
+            starting_player=actual_starting_player,
             duration_seconds=duration
         )
         
@@ -357,6 +418,7 @@ def run_simulation(
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
+    starting_player: int = 0,
     silent: bool = True,
     progress_interval: int = 10
 ) -> SimulationStats:
@@ -379,6 +441,10 @@ def run_simulation(
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 1
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random (based on seed).
+        NOTE: Currently not functional - bp_taki.py always starts with player 0.
+        When bp_taki.py is fixed, use -1 for fair simulations.
     silent : bool
         If True, suppress game logging
     progress_interval : int
@@ -396,6 +462,16 @@ def run_simulation(
           (" + block_super_taki" if player_1_block_super_taki else ""))
     print(f"Cards per player: {num_cards}")
     print(f"Starting seed: {start_seed}")
+    
+    # Warning about first-player advantage bug
+    if starting_player == 0:
+        print("⚠️  WARNING: Player 0 always starts first (bp_taki.py limitation)")
+        print("⚠️  This gives Player 0 a ~20% advantage. Results will be biased!")
+    elif starting_player == -1:
+        print("✓ Starting player will be randomized (when bp_taki.py is fixed)")
+    else:
+        print(f"Starting player: {starting_player}")
+    
     print("-" * 60)
     
     stats = SimulationStats()
@@ -417,6 +493,7 @@ def run_simulation(
             player_1_strategy=player_1_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
             player_1_block_super_taki=player_1_block_super_taki,
+            starting_player=starting_player,
             silent=silent
         )
         
