@@ -120,6 +120,67 @@ def example_seed_exploration():
               f"{stats.win_rate(0):>11.1f}%")
 
 
+def example_block_super_taki_strategy():
+    """Compare performance with and without the block_super_taki strategy."""
+    print("\n\nExample 5: Block Super TAKI Strategy")
+    print("=" * 60)
+    print("\nThis example tests the strategy_block_super_taki_during_regular_taki b-thread")
+    print("which blocks Super TAKI from being played during regular TAKI sequences.")
+    print()
+    
+    configurations = [
+        {
+            "label": "Baseline: Taki+SuperTaki vs Basic",
+            "p0_strategy": "taki_and_super_taki",
+            "p1_strategy": "basic",
+            "p0_block": False,
+            "p1_block": False
+        },
+        {
+            "label": "P0 blocks Super TAKI during regular TAKI",
+            "p0_strategy": "taki_and_super_taki",
+            "p1_strategy": "basic",
+            "p0_block": True,
+            "p1_block": False
+        },
+        {
+            "label": "Both players: Taki strategy with blocking",
+            "p0_strategy": "taki",
+            "p1_strategy": "taki",
+            "p0_block": True,
+            "p1_block": True
+        },
+        {
+            "label": "P0: Full strategy + block, P1: Basic",
+            "p0_strategy": "taki_and_super_taki",
+            "p1_strategy": "basic",
+            "p0_block": True,
+            "p1_block": False
+        }
+    ]
+    
+    print(f"{'Configuration':<45} {'P0 Wins':>10} {'P1 Wins':>10} {'P0 %':>8}")
+    print("-" * 75)
+    
+    for config in configurations:
+        stats = run_simulation(
+            num_games=50,
+            start_seed=2000,  # Use consistent seeds
+            player_0_strategy=config["p0_strategy"],
+            player_1_strategy=config["p1_strategy"],
+            player_0_block_super_taki=config["p0_block"],
+            player_1_block_super_taki=config["p1_block"],
+            silent=True,
+            progress_interval=50
+        )
+        
+        print(f"{config['label']:<45} {stats.player_0_wins:>10} {stats.player_1_wins:>10} "
+              f"{stats.win_rate(0):>7.1f}%")
+    
+    print("\nNote: The blocking strategy prevents Super TAKI from being used during")
+    print("regular TAKI sequences, forcing more strategic play of TAKI cards.")
+
+
 if __name__ == "__main__":
     # Run all examples
     # Uncomment the ones you want to run
@@ -131,6 +192,8 @@ if __name__ == "__main__":
     # example_large_simulation()
     
     # example_seed_exploration()
+    
+    # example_block_super_taki_strategy()
     
     print("\n" + "=" * 60)
     print("All examples completed!")
