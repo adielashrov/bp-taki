@@ -1,5 +1,5 @@
 """
-Taki Game Simulation Module
+BP-Taki Game Simulation Module
 
 This module provides functionality to run multiple simulations of the Taki game
 with different random seeds and track statistics about player wins.
@@ -236,9 +236,9 @@ def create_simulation_bprogram(
         NOTE: Current bp_taki.py implementation always starts with player 0.
         This parameter is included for future compatibility but doesn't change behavior yet.
     player_0_strategy : str
-        Strategy for player 0: "basic", "taki", "taki_and_super_taki"
+        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "block_super_taki"
     player_1_strategy : str
-        Strategy for player 1: "basic", "taki", "taki_and_super_taki"
+        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "block_super_taki"
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
@@ -318,7 +318,7 @@ def run_single_game(
     game_number: int,
     seed: int,
     num_cards: int = NUM_OF_CARDS,
-    player_0_strategy: str = "taki_and_super_taki",
+    player_0_strategy: str = "basic",
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
@@ -534,7 +534,7 @@ def save_results(stats: SimulationStats, filename: str = None):
 if __name__ == "__main__":
 
     stats = run_simulation(
-        num_games=500,
+        num_games=100,
         start_seed=0,
         starting_player=0,
         player_0_strategy="basic",
