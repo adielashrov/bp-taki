@@ -5,14 +5,13 @@ This module provides functionality to run multiple simulations of the Taki game
 with different random seeds and track statistics about player wins.
 """
 
+import bppy as bp
 import random
 import logging
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from dataclasses import dataclass, field
 import json
-
-import bppy as bp
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
 
 # Import from bp_taki
