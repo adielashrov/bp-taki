@@ -1405,6 +1405,31 @@ def enforce_card_placement_rules():
 
 
 @bp.thread
+def identify_livelock():
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    livelock_event = BPEvent("livelock", priority=5.0)
+    game_draw_event = BPEvent("game_draw", priority=5.0)
+    end_game_event = BPEvent("end_game", priority=10.0)
+
+    move_count = 0
+    while True:
+        last_event = yield bp.sync(waitFor=bp.All())
+        logger.debug(f"[Livelock Verifier] Event received: {last_event.name}")
+        if last_event.name == "end_game":
+            break
+        
+        if last_event.name.startswith(("p_0_", "p_1_")):
+            move_count += 1
+        
+        if move_count > 1000:
+            yield bp.sync(request=livelock_event, block=bp.AllExcept(livelock_event))
+            yield bp.sync(request=game_draw_event, block=bp.AllExcept(game_draw_event))
+            logger.debug(f"[Livelock Verifier] livelock detected, blocking execution. {move_count}")
+            # Initiatiate a deadlock event to terminate the game
+            yield bp.sync(block=bp.All())
+
+
+@bp.thread
 def identify_deadlock():
     last_event = yield bp.sync(request=BPEvent("deadlock"), waitFor=BPEvent("end_game", priority=10.0))
     if last_event.name.startswith("deadlock"):
@@ -1419,30 +1444,6 @@ def detect_illegal_post_game_moves():
     # Allow one more event and check
     illegal_event = yield bp.sync(waitFor=bp.All())
     assert False, f"Illegal event occurred after game ended: {illegal_event}"
-
-'''
-@bp.thread
-def verify_turn_alternation():
-    yield bp.sync(waitFor=BPEvent("start_game"))
-
-    last_acting_player = None
-
-    while True:
-        # Wait for any game event (not just player actions)
-        event = yield bp.sync(waitFor=bp.EventSet(lambda e: True))
-
-        if event.name.startswith("p_"):
-            # Determine which player acted
-            acting_player = 0 if event.name.startswith("p_0_") else 1
-
-            if last_acting_player is not None and acting_player == last_acting_player:
-                raise AssertionError(
-                    f"[Verifier ❌] Turn violation: Player {acting_player} acted twice in a row: {event}"
-                )
-
-            last_acting_player = acting_player
-'''
-
 
 
 @bp.thread
@@ -1529,6 +1530,7 @@ def init_b_program():
                                       enforce_turns(),
                                       enforce_card_placement_rules(),
                                       identify_deadlock(),
+                                      identify_livelock(),
                                       verify_turn_alternation()],
                                      # detect_illegal_post_game_moves()],
                             event_selection_strategy=EventPrioritySelectionStrategy(),
