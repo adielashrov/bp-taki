@@ -89,7 +89,10 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         reason = ""
 
         # System events that are always allowed regardless of placement rules
-        if "draw_card" in e.name:
+        if e.name.startswith("deal_p_"):
+            allowed = True
+            reason = "deal events always allowed"
+        elif e.name.startswith("p_") and "draw_card" in e.name:
             allowed = True
             reason = "draw_card always allowed"
         elif "no_more_cards" in e.name:
@@ -115,7 +118,7 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
         # If execution reaches this point, the event is about to be blocked.
         # We check if it is a "taki" card to verify if we are accidentally blocking a valid Taki-on-Taki move.
-        if "taki" in e.name and card_type == "TAKI":
+        if (not allowed) and ("taki" in e.name) and (card_type == "TAKI"):
             logger.debug(f"[RULES] Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
 
 
@@ -516,7 +519,7 @@ def init_cards_events():
         for number in numbers:
             all_cards.append(BPEvent(name=f"card_{number}_{color}", priority=10.0))
 
-    for color in colors: # Add color cards - 2 of each color
+    for color in colors: # Add stop cards - 2 of each color
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
 
@@ -1414,7 +1417,6 @@ def identify_livelock():
     move_count = 0
     while True:
         last_event = yield bp.sync(waitFor=bp.All())
-        logger.debug(f"[Livelock Verifier] Event received: {last_event.name}")
         if last_event.name == "end_game":
             break
         
