@@ -616,14 +616,47 @@ def is_deal_regular_card_event(event: BPEvent) -> bool:
     return False
 
 @bp.thread
-def deal_cards(num_of_players=2, num_of_cards=2):
+def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
+    """
+    Deal random cards to players with fair distribution.
+    
+    IMPORTANT: Cards are dealt in STARTING-PLAYER ORDER to ensure symmetry.
+    When starting_player=1, P1 receives cards first, then P0.
+    
+    Parameters
+    ----------
+    num_of_players : int
+        Number of players (typically 2)
+    num_of_cards : int
+        Number of cards each player receives
+    starting_player : int, optional
+        Which player goes first (0 or 1). Default is 0.
+        Cards are dealt to starting player FIRST for symmetry.
+    
+    Protocol
+    --------
+    1. Wait for "start_dealing_cards_to_players"
+    2. Deal cards alternating, but starting with starting_player
+    3. Signal "finished_dealing_cards_to_players"
+    4. Deal the leading card
+    5. Handle draw requests during gameplay
+    """
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
     cards_events = init_cards_events()
     deal_cards_events = create_deal_events(cards_events)
-    for i in range(num_of_players):
-        yield bp.sync(request=BPEvent(f"deal_cards_to_player_{i}", priority=10.0))
-        for j in range(num_of_cards):
-            last_event = yield bp.sync(request=deal_cards_events) # possible pattern here?
+    
+    if starting_player == 0:
+        player_order = list(range(num_of_players))  # [0, 1]
+    else:
+        player_order = list(range(starting_player, num_of_players)) + list(range(starting_player))
+    
+    logger.debug(f"[DEAL_CARDS] Dealing order: {player_order} (starting_player={starting_player})")
+    
+    # Deal cards one at a time, alternating between players in the determined order
+    for j in range(num_of_cards):
+        for player_idx in player_order:
+            yield bp.sync(request=BPEvent(f"deal_cards_to_player_{player_idx}", priority=10.0))
+            last_event = yield bp.sync(request=deal_cards_events)
             deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent("finished_dealing_cards_to_players", priority=10.0))
 
@@ -641,9 +674,13 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
     while True:
         last_event = yield bp.sync(waitFor=[BPEvent("p_0_draw_card"), BPEvent("p_1_draw_card")])
+        player_id = "0" if "p_0" in last_event.name else "1"
+        
         if not deal_cards_events:  # imagine an infinite pile of cards.
             deal_cards_events = create_deal_events(init_cards_events())
-        yield bp.sync(request=deal_cards_events)
+        
+        last_event = yield bp.sync(request=deal_cards_events)
+        deal_cards_events.remove(last_event)
 
 
 def remove_deal_prefix_from_event(event):
@@ -1521,15 +1558,15 @@ def setup_logger():
         logger.debug(f"--> Logger configured. Saving to: {log_filename}")
 
 
-def init_b_program():
+def init_b_program(starting_player=1):
     b_program = bp.BProgram(bthreads=[game_manager(),
-                                      deal_cards(2, NUM_OF_CARDS),
+                                      deal_cards(2, NUM_OF_CARDS, starting_player),
                                       player_behavior(0, NUM_OF_CARDS),
                                       # basic_strategy_taki(0, NUM_OF_CARDS),
                                       # basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
                                       # strategy_block_super_taki_during_regular_taki(0),
                                       player_behavior(1, NUM_OF_CARDS),
-                                      enforce_turns(),
+                                      enforce_turns(2, starting_player),
                                       enforce_card_placement_rules(),
                                       identify_deadlock(),
                                       identify_livelock(),
