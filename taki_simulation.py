@@ -451,8 +451,7 @@ def create_simulation_bprogram(
         Number of cards to deal to each player
     starting_player : int
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
-        NOTE: Current bp_taki.py implementation always starts with player 0.
-        This parameter is included for future compatibility but doesn't change behavior yet.
+        Cards are dealt to the starting player first to ensure fairness.
     player_0_strategy : str
         Strategy for player 0: "basic", "taki", "taki_and_super_taki", "block_super_taki"
     player_1_strategy : str
@@ -470,11 +469,11 @@ def create_simulation_bprogram(
     
     Notes
     -----
-    WARNING: The current implementation of bp_taki.py has a first-player advantage bug.
-    Player 0 always goes first (hardcoded in enforce_turns), which gives them
-    a significant advantage (~70% win rate with equal strategies).
-    
-    The starting_player parameter is a placeholder for when this is fixed in bp_taki.py.
+    The starting_player parameter controls both:
+    1. Which player receives cards first from the deck (via deal_cards)
+    2. Which player takes the first turn (via enforce_turns)
+        
+    This ensures complete symmetry when starting_player varies.
     """
     # Set the random seed
     random.seed(seed)
@@ -489,7 +488,8 @@ def create_simulation_bprogram(
     # Start with core b-threads that are always present
     bthreads = [
         game_manager(),
-        deal_cards(2, num_cards),
+        deal_cards(2, num_cards, actual_starting_player),
+        player_behavior(1, num_cards),  # Always include base player behavior
         player_behavior(0, num_cards),  # Always include base player behavior
         player_behavior(1, num_cards),  # Always include base player behavior
         enforce_turns(2, actual_starting_player),  # Use positional argument (keyword args don't work with @bp.thread decorator)
@@ -644,7 +644,7 @@ def run_simulation(
     num_games: int,
     start_seed: int = 0,
     num_cards: int = NUM_OF_CARDS,
-    starting_player: int = 0,
+    starting_player: int = -1,
     player_0_strategy: str = "basic",
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
@@ -767,11 +767,11 @@ def save_results(stats: SimulationStats, filename: str = None):
 if __name__ == "__main__":
 
     stats = run_simulation(
-        num_games=1000,
+        num_games=50000,
         start_seed=0,
         starting_player=-1,
         player_0_strategy="basic",
-        player_1_strategy="taki",
+        player_1_strategy="basic",
         silent=False,
         progress_interval=5
     )
