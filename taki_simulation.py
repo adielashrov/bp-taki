@@ -1,0 +1,783 @@
+"""
+BP-Taki Game Simulation Module
+
+This module provides functionality to run multiple simulations of the Taki game
+with different random seeds and track statistics about player wins.
+"""
+
+import bppy as bp
+import random
+import logging
+import math
+from typing import Dict, List, Tuple, Optional
+from datetime import datetime
+from dataclasses import dataclass, field
+import json
+from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
+
+# Import from bp_taki
+from bp_taki import (
+    game_manager,
+    deal_cards,
+    player_behavior,
+    basic_strategy_taki,
+    basic_strategy_taki_and_super_taki,
+    strategy_block_super_taki_during_regular_taki,
+    enforce_turns,
+    enforce_card_placement_rules,
+    identify_deadlock,
+    identify_livelock,
+    verify_turn_alternation,
+    NUM_OF_CARDS
+)
+
+
+@dataclass
+class GameResult:
+    """Represents the result of a single game."""
+    game_number: int
+    seed: int
+    winner: Optional[int]  # 0 or 1, None for draws/deadlocks
+    event_count: int
+    starting_player: int = 0  # Which player went first (0 or 1)
+    duration_seconds: float = 0.0
+    ended_in_deadlock: bool = False
+    ended_in_draw: bool = False
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'game_number': self.game_number,
+            'seed': self.seed,
+            'winner': self.winner,
+            'event_count': self.event_count,
+            'starting_player': self.starting_player,
+            'duration_seconds': self.duration_seconds,
+            'ended_in_deadlock': self.ended_in_deadlock,
+            'ended_in_draw': self.ended_in_draw,
+        }
+
+
+@dataclass
+class SimulationStats:
+    """Tracks statistics across multiple games."""
+    total_attempted: int = 0
+    total_completed: int = 0
+    player_0_wins: int = 0
+    player_1_wins: int = 0
+    draws: int = 0
+    deadlocks: int = 0
+    errors: int = 0
+    average_events_per_game: float = 0.0
+    results: List[GameResult] = field(default_factory=list)
+    
+    def add_result(self, result: GameResult):
+        """Add a game result and update statistics."""
+        self.results.append(result)
+        self.total_attempted += 1
+        self.total_completed += 1
+        
+        if result.ended_in_deadlock:
+            self.deadlocks += 1
+        if result.ended_in_draw:
+            self.draws += 1
+        
+        if result.winner == 0:
+            self.player_0_wins += 1
+        elif result.winner == 1:
+            self.player_1_wins += 1
+        
+        # Update average events
+        total_events = sum(r.event_count for r in self.results)
+        self.average_events_per_game = total_events / self.total_completed if self.total_completed > 0 else 0
+    
+    def record_error(self):
+        """Record a game that ended in error."""
+        self.total_attempted += 1
+        self.errors += 1
+    
+    def win_rate(self, player: int) -> float:
+        denom = self.total_completed
+        if denom == 0:
+            return 0.0
+        wins = self.player_0_wins if player == 0 else self.player_1_wins
+        return wins / denom * 100
+    
+    def starting_player_advantage(self) -> Dict[str, any]:
+        """
+        Calculate statistics about first-player advantage.
+        
+        Returns
+        -------
+        dict
+            Statistics about starting player wins, including:
+            - 'starting_player_0_count': Games where player 0 started
+            - 'starting_player_1_count': Games where player 1 started
+            - 'wins_when_starting': How often the starting player won
+            - 'starter_win_rate': Percentage of games won by whoever started
+        """
+        if not self.results:
+            return {
+                'starting_player_0_count': 0,
+                'starting_player_1_count': 0,
+                'wins_when_starting': 0,
+                'starter_win_rate': 0.0
+            }
+        
+        p0_started = sum(1 for r in self.results if r.starting_player == 0)
+        p1_started = sum(1 for r in self.results if r.starting_player == 1)
+        
+        # Count how many times the starting player won
+        starter_wins = sum(1 for r in self.results if r.winner == r.starting_player)
+        starter_win_rate = (starter_wins / self.total_completed * 100) if self.total_completed else 0.0
+        
+        return {
+            'starting_player_0_count': p0_started,
+            'starting_player_1_count': p1_started,
+            'wins_when_starting': starter_wins,
+            'starter_win_rate': starter_win_rate
+        }
+
+    
+    @staticmethod
+    def wilson_ci(successes: int, trials: int, z: float = 1.96) -> Tuple[float, float]:
+        if trials == 0:
+            return (0.0, 0.0)
+
+        p_hat = successes / trials
+        denom = 1 + (z**2) / trials
+        center = (p_hat + (z**2) / (2 * trials)) / denom
+        margin = (
+            z * math.sqrt((p_hat * (1 - p_hat) / trials) + (z**2) / (4 * trials**2))
+        ) / denom
+        return (center - margin, center + margin)
+
+
+    def player_0_2x2_table(self) -> dict:
+        """
+        Return a 2x2 contingency table for Player 0:
+        
+            ┌────────────────────┬──────────┬──────────────┐
+            │                    │ P0 Wins  │ P0 Not Win   │
+            ├────────────────────┼──────────┼──────────────┤
+            │ P0 started         │    A     │      B       │
+            │ P0 started second  │    C     │      D       │
+            └────────────────────┴──────────┴──────────────┘
+        """
+        A = B = C = D = 0
+
+        for r in self.results:
+            if r.starting_player == 0:  # P0 started
+                if r.winner == 0:
+                    A += 1
+                else:
+                    B += 1
+            elif r.starting_player == 1:  # P0 second
+                if r.winner == 0:
+                    C += 1
+                else:
+                    D += 1
+
+        return {
+            "p0_started_p0_wins": A,
+            "p0_started_p0_not_win": B,
+            "p0_second_p0_wins": C,
+            "p0_second_p0_not_win": D,
+            "row_totals": {
+                "p0_started": A + B,
+                "p0_second": C + D,
+            },
+            "col_totals": {
+                "p0_wins": A + C,
+                "p0_not_win": B + D,
+            }
+        }
+
+
+    def player_1_2x2_table(self) -> dict:
+        """
+        Return a 2x2 contingency table for Player 1:
+        
+            ┌────────────────────┬──────────┬──────────────┐
+            │                    │ P1 Wins  │ P1 Not Win   │
+            ├────────────────────┼──────────┼──────────────┤
+            │ P1 started         │    A     │      B       │
+            │ P1 started second  │    C     │      D       │
+            └────────────────────┴──────────┴──────────────┘
+        """
+        A = B = C = D = 0
+
+        for r in self.results:
+            if r.starting_player == 1:  # P1 started
+                if r.winner == 1:
+                    A += 1
+                else:
+                    B += 1
+            elif r.starting_player == 0:  # P1 second
+                if r.winner == 1:
+                    C += 1
+                else:
+                    D += 1
+
+        return {
+            "p1_started_p1_wins": A,
+            "p1_started_p1_not_win": B,
+            "p1_second_p1_wins": C,
+            "p1_second_p1_not_win": D,
+            "row_totals": {
+                "p1_started": A + B,
+                "p1_second": C + D,
+            },
+            "col_totals": {
+                "p1_wins": A + C,
+                "p1_not_win": B + D,
+            }
+        }
+
+    
+    def player_0_ci(self):
+        tbl = self.player_0_2x2_table()
+
+        A = tbl["p0_started_p0_wins"]
+        B = tbl["p0_started_p0_not_win"]
+        C = tbl["p0_second_p0_wins"]
+        D = tbl["p0_second_p0_not_win"]
+
+        ci_start = SimulationStats.wilson_ci(A, A + B)
+        ci_second = SimulationStats.wilson_ci(C, C + D)
+
+
+        return {
+            "start_win_rate": A / (A + B) if (A + B) else 0.0,
+            "start_ci": ci_start,
+            "second_win_rate": C / (C + D) if (C + D) else 0.0,
+            "second_ci": ci_second,
+    }
+
+    def player_1_ci(self):
+        tbl = self.player_1_2x2_table()
+
+        A = tbl["p1_started_p1_wins"]
+        B = tbl["p1_started_p1_not_win"]
+        C = tbl["p1_second_p1_wins"]
+        D = tbl["p1_second_p1_not_win"]
+
+        ci_start = SimulationStats.wilson_ci(A, A + B)
+        ci_second = SimulationStats.wilson_ci(C, C + D)
+
+        return {
+            "start_win_rate": A / (A + B) if (A + B) else 0.0,
+            "start_ci": ci_start,
+            "second_win_rate": C / (C + D) if (C + D) else 0.0,
+            "second_ci": ci_second,
+        }
+
+    def summary(self) -> str:
+        """Generate a summary string of the statistics."""
+        lines = [
+            "=" * 60,
+            "TAKI GAME SIMULATION RESULTS",
+            "=" * 60,
+            f"Total Games Attempted: {self.total_attempted}",
+            f"Completed: {self.total_completed} | Errors/Incomplete: {self.errors}",
+            "",
+            "Player 0 Wins: {:4d} ({:5.1f}%)".format(
+                self.player_0_wins, self.win_rate(0)
+            ),
+            "Player 1 Wins: {:4d} ({:5.1f}%)".format(
+                self.player_1_wins, self.win_rate(1)
+            ),
+            "",
+            f"Draws: {self.draws} | Deadlocks: {self.deadlocks} | Errors: {self.errors}",
+            "",
+            f"Average Events per Game: {self.average_events_per_game:.1f}",
+        ]
+        
+        # Add starting player advantage analysis if games have varied starting players
+        adv = self.starting_player_advantage()
+        if adv['starting_player_0_count'] > 0 and adv['starting_player_1_count'] > 0:
+            lines.extend([
+                "",
+                "Starting Player Analysis:",
+                f"  Games where P0 started: {adv['starting_player_0_count']}",
+                f"  Games where P1 started: {adv['starting_player_1_count']}",
+                f"  Starting player won: {adv['wins_when_starting']}/{self.total_completed} ({adv['starter_win_rate']:.1f}%)",
+            ])
+        elif adv['starting_player_0_count'] > 0:
+            lines.extend([
+                "",
+                "[!] Note: Player 0 started ALL games (first-player advantage present!)",
+            ])
+
+        tbl = self.player_0_2x2_table()
+
+        lines.extend([
+            "",
+            "Player 0 — Starting Position vs Outcome (2x2):",
+            "",
+            "                 |  P0 Wins | P0 Not Win",
+            "-----------------+----------+------------",
+            f"P0 started       | {tbl['p0_started_p0_wins']:8d} | {tbl['p0_started_p0_not_win']:10d}",
+            f"P0 started second| {tbl['p0_second_p0_wins']:8d} | {tbl['p0_second_p0_not_win']:10d}",
+        ])
+
+        tbl = self.player_1_2x2_table()
+
+        lines.extend([
+            "",
+            "Player 1 — Starting Position vs Outcome (2x2):",
+            "",
+            "                 |  P1 Wins | P1 Not Win",
+            "-----------------+----------+------------",
+            f"P1 started       | {tbl['p1_started_p1_wins']:8d} | {tbl['p1_started_p1_not_win']:10d}",
+            f"P1 started second| {tbl['p1_second_p1_wins']:8d} | {tbl['p1_second_p1_not_win']:10d}",
+        ])
+        
+        p0_ci = self.player_0_ci()
+        lines.extend([
+            "",
+            "Player 0 — Win Rates with 95% CI:",
+            f"  When starting: {p0_ci['start_win_rate']*100:5.1f}% "
+            f"[{p0_ci['start_ci'][0]*100:5.1f}%, {p0_ci['start_ci'][1]*100:5.1f}%]",
+            f"  When second:  {p0_ci['second_win_rate']*100:5.1f}% "
+            f"[{p0_ci['second_ci'][0]*100:5.1f}%, {p0_ci['second_ci'][1]*100:5.1f}%]",
+        ])
+
+        p1_ci = self.player_1_ci()
+        lines.extend([
+            "",
+            "Player 1 — Win Rates with 95% CI:",
+            f"  When starting: {p1_ci['start_win_rate']*100:5.1f}% "
+            f"[{p1_ci['start_ci'][0]*100:5.1f}%, {p1_ci['start_ci'][1]*100:5.1f}%]",
+            f"  When second:  {p1_ci['second_win_rate']*100:5.1f}% "
+            f"[{p1_ci['second_ci'][0]*100:5.1f}%, {p1_ci['second_ci'][1]*100:5.1f}%]",
+        ])
+
+        lines.append("=" * 60)
+        return "\n".join(lines)
+    
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'total_completed': self.total_completed,
+            'total_attempted': self.total_attempted,
+            'player_0_wins': self.player_0_wins,
+            'player_1_wins': self.player_1_wins,
+            'player_0_win_rate': self.win_rate(0),
+            'player_1_win_rate': self.win_rate(1),
+            'errors': self.errors,
+            'draws': self.draws,
+            'deadlocks': self.deadlocks,
+            'average_events_per_game': self.average_events_per_game,
+            'starting_player_advantage': self.starting_player_advantage(),
+            'results': [r.to_dict() for r in self.results]
+        }
+    
+    def test_results(self):
+        assert self.total_attempted == self.total_completed + self.errors, (
+            f"Inconsistent stats: attempted={self.total_attempted}, "
+            f"completed={self.total_completed}, errors={self.errors}"
+        )
+
+
+class SimulationListener:
+    """Listener that tracks game events and determines the winner."""
+    
+    def __init__(self):
+        self.events = []
+        self.winner = None
+        self.ended_in_deadlock = False
+        self.ended_in_draw = False
+        
+    def starting(self, b_program): pass
+    def started(self, b_program): pass
+    def super_step_done(self, b_program): pass
+    def ended(self, b_program): pass
+    def assertion_failed(self, b_program): pass
+    def halted(self, b_program): pass
+    
+    def event_selected(self, b_program, event):
+        """Record each selected event."""
+        self.events.append(event.name)
+        
+        # Check if this is a winning event
+        if event.name == "p_0_no_more_cards":
+            self.winner = 0
+        elif event.name == "p_1_no_more_cards":
+            self.winner = 1
+        elif event.name == "deadlock":
+            self.ended_in_deadlock = True
+        elif event.name == "game_draw":
+            self.ended_in_draw = True
+    
+    def get_winner(self) -> Optional[int]:
+        """Return the winner (0 or 1) or None if no winner yet."""
+        return self.winner
+    
+    def get_deadlock(self) -> bool:
+        """Return True if the game ended in deadlock."""
+        return self.ended_in_deadlock
+    
+    def get_draw(self) -> bool:
+        """Return True if the game ended in a draw."""
+        return self.ended_in_draw
+    
+    def get_event_count(self) -> int:
+        """Return the total number of events that occurred."""
+        return len(self.events)
+
+
+def create_simulation_bprogram(
+    seed: int,
+    listener: SimulationListener,
+    num_cards: int = NUM_OF_CARDS,
+    starting_player: int = 0,
+    player_0_strategy: str = "basic",
+    player_1_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+    player_1_block_super_taki: bool = False,
+) -> bp.BProgram:
+    """
+    Create a BProgram configured for simulation.
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed for this game
+    listener : SimulationListener
+        Listener to track game events
+    num_cards : int
+        Number of cards to deal to each player
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random selection based on seed.
+        Cards are dealt to the starting player first to ensure fairness.
+    player_0_strategy : str
+        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+    player_1_strategy : str
+        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+    player_0_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 0
+    player_1_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 1
+    
+    
+    Returns
+    -------
+    bp.BProgram
+        Configured behavioral program
+    
+    Notes
+    -----
+    The starting_player parameter controls both:
+    1. Which player receives cards first from the deck (via deal_cards)
+    2. Which player takes the first turn (via enforce_turns)
+        
+    This ensures complete symmetry when starting_player varies.
+    """
+    # Set the random seed
+    random.seed(seed)
+    
+    # Determine starting player (currently not used - see docstring warning)
+    if starting_player == -1:
+        # Random selection based on seed
+        actual_starting_player = random.randint(0, 1)
+    else:
+        actual_starting_player = starting_player
+    
+    # Start with core b-threads that are always present
+    bthreads = [
+        game_manager(),
+        deal_cards(2, num_cards, actual_starting_player),
+        player_behavior(1, num_cards),  # Always include base player behavior
+        player_behavior(0, num_cards),  # Always include base player behavior
+        player_behavior(1, num_cards),  # Always include base player behavior
+        enforce_turns(2, actual_starting_player),  # Use positional argument (keyword args don't work with @bp.thread decorator)
+        enforce_card_placement_rules(),
+        identify_deadlock(),
+        identify_livelock(),
+        verify_turn_alternation()
+    ]
+    
+    # Add strategy b-threads for player 0 if not basic
+    if player_0_strategy == "taki":
+        bthreads.append(basic_strategy_taki(0, num_cards))
+    elif player_0_strategy == "taki_and_super_taki":
+        bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy != "basic":
+        raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
+    
+    # Add blocking strategy for player 0 if requested
+    if player_0_block_super_taki:
+        bthreads.append(strategy_block_super_taki_during_regular_taki(0))
+    
+    # Add strategy b-threads for player 1 if not basic
+    if player_1_strategy == "taki":
+        bthreads.append(basic_strategy_taki(1, num_cards))
+    elif player_1_strategy == "taki_and_super_taki":
+        bthreads.append(basic_strategy_taki_and_super_taki(1, num_cards))
+    elif player_1_strategy != "basic":
+        raise ValueError(f"Unknown strategy for player 1: {player_1_strategy}")
+    
+    # Add blocking strategy for player 1 if requested
+    if player_1_block_super_taki:
+        bthreads.append(strategy_block_super_taki_during_regular_taki(1))
+    
+    # Create and return the BProgram
+    b_program = bp.BProgram(
+        bthreads=bthreads,
+        event_selection_strategy=EventPrioritySelectionStrategy(),
+        listener=listener
+    )
+    
+    return b_program, actual_starting_player
+
+
+def run_single_game(
+    game_number: int,
+    seed: int,
+    num_cards: int = NUM_OF_CARDS,
+    player_0_strategy: str = "basic",
+    player_1_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+    player_1_block_super_taki: bool = False,
+    starting_player: int = 0,
+    silent: bool = True
+) -> Optional[GameResult]:
+    """
+    Run a single game with the given seed.
+    
+    Parameters
+    ----------
+    game_number : int
+        The game number in the simulation
+    seed : int
+        Random seed for reproducibility
+    num_cards : int
+        Number of cards per player
+    player_0_strategy : str
+        Strategy for player 0
+    player_1_strategy : str
+        Strategy for player 1
+    player_0_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 0
+    player_1_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 1
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random (based on seed).
+        NOTE: Currently not functional - bp_taki.py always starts with player 0.
+    silent : bool
+        If True, suppress logging output
+    
+    Returns
+    -------
+    GameResult or None
+        Result of the game, or None if an error occurred
+    """
+    # Print which seed we're about to run (BEFORE anything happens)
+    print(f"Starting game {game_number} with seed {seed}...", flush=True)
+    
+    # Temporarily adjust logging if silent mode
+    if silent:
+        original_level = logging.getLogger("TakiGame").level
+        logging.getLogger("TakiGame").setLevel(logging.CRITICAL)
+    
+    try:
+        # Create listener
+        listener = SimulationListener()
+        
+        # Create and run the b-program
+        start_time = datetime.now()
+        b_program, actual_starting_player = create_simulation_bprogram(
+            seed=seed,
+            listener=listener,
+            num_cards=num_cards,
+            starting_player=starting_player,
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=player_1_strategy,
+            player_0_block_super_taki=player_0_block_super_taki,
+            player_1_block_super_taki=player_1_block_super_taki,
+        )
+        b_program.run()
+        end_time = datetime.now()
+        
+        # Get terminal state
+        winner = listener.get_winner()
+        ended_in_deadlock = listener.get_deadlock()
+        ended_in_draw = listener.get_draw()
+        
+        if winner is None and not (ended_in_deadlock or ended_in_draw):
+            print(f"Warning: Game {game_number} (seed={seed}) ended without a winner")
+            return None
+        
+        if ended_in_deadlock:
+            print(f"Game {game_number} (seed={seed}) ended in deadlock.")
+        
+        if ended_in_draw:
+            print(f"Game {game_number} (seed={seed}) ended in a draw.")
+        
+        # Create result
+        duration = (end_time - start_time).total_seconds()
+        result = GameResult(
+            game_number=game_number,
+            seed=seed,
+            winner=winner,
+            event_count=listener.get_event_count(),
+            starting_player=actual_starting_player,
+            duration_seconds=duration,
+            ended_in_deadlock=ended_in_deadlock,
+            ended_in_draw=ended_in_draw,
+        )
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in game {game_number} (seed={seed}): {type(e).__name__}: {e}")
+        return None
+        
+    finally:
+        if silent:
+            logging.getLogger("TakiGame").setLevel(original_level)
+
+
+def run_simulation(
+    num_games: int,
+    start_seed: int = 0,
+    num_cards: int = NUM_OF_CARDS,
+    starting_player: int = -1,
+    player_0_strategy: str = "basic",
+    player_1_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+    player_1_block_super_taki: bool = False,
+    silent: bool = True,
+    progress_interval: int = 10
+) -> SimulationStats:
+    """
+    Run multiple games and collect statistics.
+    
+    Parameters
+    ----------
+    num_games : int
+        Number of games to simulate
+    start_seed : int
+        Starting random seed (each game increments by 1)
+    num_cards : int
+        Number of cards per player
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random (based on seed).
+        NOTE: Currently not functional - bp_taki.py always starts with player 0.
+        When bp_taki.py is fixed, use -1 for fair simulations.
+    player_0_strategy : str
+        Strategy for player 0
+    player_1_strategy : str
+        Strategy for player 1
+    player_0_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 0
+    player_1_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 1
+    silent : bool
+        If True, suppress game logging
+    progress_interval : int
+        Print progress every N games
+    
+    Returns
+    -------
+    SimulationStats
+        Statistics about all games
+    """
+    print(f"Starting simulation of {num_games} games...")
+    print(f"Player 0 strategy: {player_0_strategy}" + 
+          (" + block_super_taki" if player_0_block_super_taki else ""))
+    print(f"Player 1 strategy: {player_1_strategy}" +
+          (" + block_super_taki" if player_1_block_super_taki else ""))
+    print(f"Cards per player: {num_cards}")
+    print(f"Starting seed: {start_seed}")
+    
+    # Warning about first-player advantage bug
+    if starting_player == 0:
+        print("[!] WARNING: Player 0 always starts first (bp_taki.py limitation)")
+        print("[!] This gives Player 0 a ~20% advantage. Results will be biased!")
+    elif starting_player == -1:
+        print("[+] Starting player will be randomized (when bp_taki.py is fixed)")
+    else:
+        print(f"Starting player: {starting_player}")
+    
+    print("-" * 60)
+    
+    stats = SimulationStats()
+    
+    for i in range(num_games):
+        game_number = i + 1
+        seed = start_seed + i
+        
+        if seed == 39:
+            print("Not Skipping seed 39 to catch a livelock issue.")
+            # seed += 1  # Skip seed 39 due to known issues
+
+        # Print progress
+        if game_number % progress_interval == 0 or game_number == 1:
+            print(f"Running game {game_number}/{num_games} (seed={seed})...")
+        
+        # Run the game
+        result = run_single_game(
+            game_number=game_number,
+            seed=seed,
+            num_cards=num_cards,
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=player_1_strategy,
+            player_0_block_super_taki=player_0_block_super_taki,
+            player_1_block_super_taki=player_1_block_super_taki,
+            starting_player=starting_player,
+            silent=silent
+        )
+        
+        # Record result
+        if result is not None:
+            stats.add_result(result)
+        else:
+            stats.record_error()
+    
+    # Sanity check of statistics of measuring game counters.
+    stats.test_results()
+
+    return stats
+
+
+def save_results(stats: SimulationStats, filename: str = None):
+    """
+    Save simulation results to a JSON file.
+    
+    Parameters
+    ----------
+    stats : SimulationStats
+        Statistics to save
+    filename : str, optional
+        Output filename. If None, generates a timestamped name.
+    """
+    if filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"taki_simulation_results_{timestamp}.json"
+    
+    with open(filename, 'w') as f:
+        json.dump(stats.to_dict(), f, indent=2)
+    
+    print(f"\nResults saved to: {filename}")
+
+
+if __name__ == "__main__":
+
+    stats = run_simulation(
+        num_games=1000,
+        start_seed=0,
+        starting_player=-1,
+        player_0_strategy="basic",
+        player_1_strategy="basic",
+        silent=False,
+        progress_interval=5
+    )
+    
+    # Print summary
+    print("\n" + stats.summary())
+    
+    # Save results
+    save_results(stats, "seeds_test.json")
