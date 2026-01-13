@@ -767,7 +767,7 @@ def save_results(stats: SimulationStats, filename: str = None):
 if __name__ == "__main__":
 
     stats = run_simulation(
-        num_games=50000,
+        num_games=1000,
         start_seed=0,
         starting_player=-1,
         player_0_strategy="basic",
