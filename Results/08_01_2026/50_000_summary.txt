@@ -1,0 +1,42 @@
+============================================================
+TAKI GAME SIMULATION RESULTS
+============================================================
+Total Games Attempted: 50000
+Completed: 49862 | Errors/Incomplete: 138
+
+Player 0 Wins: 24930 ( 50.0%)
+Player 1 Wins: 24932 ( 50.0%)
+
+Draws: 0 | Deadlocks: 0 | Errors: 138
+
+Average Events per Game: 112.3
+
+Starting Player Analysis:
+  Games where P0 started: 24773
+  Games where P1 started: 25089
+  Starting player won: 26593/49862 (53.3%)
+
+Player 0 — Starting Position vs Outcome (2x2):
+
+                 |  P0 Wins | P0 Not Win
+-----------------+----------+------------
+P0 started       |    13217 |      11556
+P0 started second|    11713 |      13376
+
+Player 1 — Starting Position vs Outcome (2x2):
+
+                 |  P1 Wins | P1 Not Win
+-----------------+----------+------------
+P1 started       |    13376 |      11713
+P1 started second|    11556 |      13217
+
+Player 0 — Win Rates with 95% CI:
+  When starting:  53.4% [ 52.7%,  54.0%]
+  When second:   46.7% [ 46.1%,  47.3%]
+
+Player 1 — Win Rates with 95% CI:
+  When starting:  53.3% [ 52.7%,  53.9%]
+  When second:   46.6% [ 46.0%,  47.3%]
+============================================================
+
+Results saved to: seeds_test.json
