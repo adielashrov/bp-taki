@@ -89,7 +89,10 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         reason = ""
 
         # System events that are always allowed regardless of placement rules
-        if "draw_card" in e.name:
+        if e.name.startswith("deal_p_"):
+            allowed = True
+            reason = "deal events always allowed"
+        elif e.name.startswith("p_") and "draw_card" in e.name:
             allowed = True
             reason = "draw_card always allowed"
         elif "no_more_cards" in e.name:
@@ -115,7 +118,7 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
         # If execution reaches this point, the event is about to be blocked.
         # We check if it is a "taki" card to verify if we are accidentally blocking a valid Taki-on-Taki move.
-        if "taki" in e.name and card_type == "TAKI":
+        if (not allowed) and ("taki" in e.name) and (card_type == "TAKI"):
             logger.debug(f"[RULES] Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
 
 
@@ -516,7 +519,7 @@ def init_cards_events():
         for number in numbers:
             all_cards.append(BPEvent(name=f"card_{number}_{color}", priority=10.0))
 
-    for color in colors: # Add color cards - 2 of each color
+    for color in colors: # Add stop cards - 2 of each color
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
         all_cards.append(BPEvent(name=f"stop_{color}", priority=10.0))
 
@@ -613,14 +616,47 @@ def is_deal_regular_card_event(event: BPEvent) -> bool:
     return False
 
 @bp.thread
-def deal_cards(num_of_players=2, num_of_cards=2):
+def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
+    """
+    Deal random cards to players with fair distribution.
+    
+    IMPORTANT: Cards are dealt in STARTING-PLAYER ORDER to ensure symmetry.
+    When starting_player=1, P1 receives cards first, then P0.
+    
+    Parameters
+    ----------
+    num_of_players : int
+        Number of players (typically 2)
+    num_of_cards : int
+        Number of cards each player receives
+    starting_player : int, optional
+        Which player goes first (0 or 1). Default is 0.
+        Cards are dealt to starting player FIRST for symmetry.
+    
+    Protocol
+    --------
+    1. Wait for "start_dealing_cards_to_players"
+    2. Deal cards alternating, but starting with starting_player
+    3. Signal "finished_dealing_cards_to_players"
+    4. Deal the leading card
+    5. Handle draw requests during gameplay
+    """
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
     cards_events = init_cards_events()
     deal_cards_events = create_deal_events(cards_events)
-    for i in range(num_of_players):
-        yield bp.sync(request=BPEvent(f"deal_cards_to_player_{i}", priority=10.0))
-        for j in range(num_of_cards):
-            last_event = yield bp.sync(request=deal_cards_events) # possible pattern here?
+    
+    if starting_player == 0:
+        player_order = list(range(num_of_players))  # [0, 1]
+    else:
+        player_order = list(range(starting_player, num_of_players)) + list(range(starting_player))
+    
+    logger.debug(f"[DEAL_CARDS] Dealing order: {player_order} (starting_player={starting_player})")
+    
+    # Deal cards one at a time, alternating between players in the determined order
+    for j in range(num_of_cards):
+        for player_idx in player_order:
+            yield bp.sync(request=BPEvent(f"deal_cards_to_player_{player_idx}", priority=10.0))
+            last_event = yield bp.sync(request=deal_cards_events)
             deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent("finished_dealing_cards_to_players", priority=10.0))
 
@@ -638,9 +674,13 @@ def deal_cards(num_of_players=2, num_of_cards=2):
 
     while True:
         last_event = yield bp.sync(waitFor=[BPEvent("p_0_draw_card"), BPEvent("p_1_draw_card")])
+        player_id = "0" if "p_0" in last_event.name else "1"
+        
         if not deal_cards_events:  # imagine an infinite pile of cards.
             deal_cards_events = create_deal_events(init_cards_events())
-        yield bp.sync(request=deal_cards_events)
+        
+        last_event = yield bp.sync(request=deal_cards_events)
+        deal_cards_events.remove(last_event)
 
 
 def remove_deal_prefix_from_event(event):
@@ -1235,13 +1275,13 @@ def is_color_card_event(event: BPEvent) -> bool:
 
 
 @bp.thread
-def enforce_turns(num_of_players=2):
+def enforce_turns(num_of_players=2, starting_player=0):
     next_or_stop_or_taki_lst = [BPEvent("next_turn", priority=10.0), bp.EventSet(is_stop_card_event), bp.EventSet(is_any_taki_event)]
     next_turn_or_stop_or_taki_event_set = bp.EventSetList(next_or_stop_or_taki_lst)
 
     yield bp.sync(waitFor=BPEvent("start_game"))
 
-    current_player = 0
+    current_player = starting_player
     next_player = (current_player + 1) % num_of_players
     while True: # We should block the other player from playing out of turn in all the while loop.
         last_event = yield bp.sync(waitFor=next_turn_or_stop_or_taki_event_set,
@@ -1405,6 +1445,30 @@ def enforce_card_placement_rules():
 
 
 @bp.thread
+def identify_livelock():
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    livelock_event = BPEvent("livelock", priority=5.0)
+    game_draw_event = BPEvent("game_draw", priority=5.0)
+    end_game_event = BPEvent("end_game", priority=10.0)
+
+    move_count = 0
+    while True:
+        last_event = yield bp.sync(waitFor=bp.All())
+        if last_event.name == "end_game":
+            break
+        
+        if last_event.name.startswith(("p_0_", "p_1_")):
+            move_count += 1
+        
+        if move_count > 1000:
+            yield bp.sync(request=livelock_event, block=bp.AllExcept(livelock_event))
+            yield bp.sync(request=game_draw_event, block=bp.AllExcept(game_draw_event))
+            logger.debug(f"[Livelock Verifier] livelock detected, blocking execution. {move_count}")
+            # Initiatiate a deadlock event to terminate the game
+            yield bp.sync(block=bp.All())
+
+
+@bp.thread
 def identify_deadlock():
     last_event = yield bp.sync(request=BPEvent("deadlock"), waitFor=BPEvent("end_game", priority=10.0))
     if last_event.name.startswith("deadlock"):
@@ -1419,30 +1483,6 @@ def detect_illegal_post_game_moves():
     # Allow one more event and check
     illegal_event = yield bp.sync(waitFor=bp.All())
     assert False, f"Illegal event occurred after game ended: {illegal_event}"
-
-'''
-@bp.thread
-def verify_turn_alternation():
-    yield bp.sync(waitFor=BPEvent("start_game"))
-
-    last_acting_player = None
-
-    while True:
-        # Wait for any game event (not just player actions)
-        event = yield bp.sync(waitFor=bp.EventSet(lambda e: True))
-
-        if event.name.startswith("p_"):
-            # Determine which player acted
-            acting_player = 0 if event.name.startswith("p_0_") else 1
-
-            if last_acting_player is not None and acting_player == last_acting_player:
-                raise AssertionError(
-                    f"[Verifier ❌] Turn violation: Player {acting_player} acted twice in a row: {event}"
-                )
-
-            last_acting_player = acting_player
-'''
-
 
 
 @bp.thread
@@ -1518,17 +1558,18 @@ def setup_logger():
         logger.debug(f"--> Logger configured. Saving to: {log_filename}")
 
 
-def init_b_program():
+def init_b_program(starting_player=1):
     b_program = bp.BProgram(bthreads=[game_manager(),
-                                      deal_cards(2, NUM_OF_CARDS),
+                                      deal_cards(2, NUM_OF_CARDS, starting_player),
                                       player_behavior(0, NUM_OF_CARDS),
                                       # basic_strategy_taki(0, NUM_OF_CARDS),
                                       # basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
                                       # strategy_block_super_taki_during_regular_taki(0),
                                       player_behavior(1, NUM_OF_CARDS),
-                                      enforce_turns(),
+                                      enforce_turns(2, starting_player),
                                       enforce_card_placement_rules(),
                                       identify_deadlock(),
+                                      identify_livelock(),
                                       verify_turn_alternation()],
                                      # detect_illegal_post_game_moves()],
                             event_selection_strategy=EventPrioritySelectionStrategy(),
