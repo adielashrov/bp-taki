@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
 
-NUM_OF_CARDS = 8
+NUM_OF_CARDS = 8 # Maybe the bug is related to number of cards?
 NUM_OF_PLAYERS = 2
 COLORS = ["red", "blue", "green"]
 
@@ -1188,6 +1188,214 @@ def strategy_block_super_taki_during_regular_taki(index):
             break
 
 
+def add_event_to_card_events_according_to_color_dominance(index, card_name, original_priority, card_events, dominant_color):
+    """
+    Add a card event to player's hand with priority adjustment based on color dominance.
+    
+    Dominant color cards receive priority 5.0 (higher preference), 
+    while off-color cards get priority 12.0 (lower preference).
+    
+    EXCLUDES change_color cards - they are managed exclusively by player_behavior.
+    """
+    # Skip change_color cards - let player_behavior handle them exclusively
+    if "change_color" in card_name:
+        logger.debug(
+            f"[STRATEGY_COLOR_DOM] Player {index}: Skipping change_color card - "
+            f"player_behavior will manage it"
+        )
+        return
+    
+    # Check if card is of the dominant color
+    is_dominant = dominant_color in card_name
+    
+    if is_dominant:
+        adjusted_priority = 5.0
+        logger.debug(
+            f"[STRATEGY_COLOR_DOM] Player {index}: Adding DOMINANT color card '{card_name}' "
+            f"with BOOSTED priority {adjusted_priority} (original: {original_priority})"
+        )
+    else:
+        adjusted_priority = 12.0
+        logger.debug(
+            f"[STRATEGY_COLOR_DOM] Player {index}: Adding off-color card '{card_name}' "
+            f"with LOWERED priority {adjusted_priority} (original: {original_priority})"
+        )
+    
+    card_events.append(BPEvent(card_name, priority=adjusted_priority))
+
+
+@bp.thread  
+def strategy_color_dominance(index, num_of_cards=2):
+    """
+    B-thread implementing color dominance strategy: prioritize one dominant color throughout the game.
+    
+    This strategy analyzes the player's initial hand, identifies the most common color,
+    and consistently prioritizes playing cards of that color by adjusting event priorities.
+    
+    Works ALONGSIDE player_behavior in the sense that both can coexist in the system,
+    but this strategy handles its own card management (like basic_strategy_taki).
+    
+    Parameters
+    ----------
+    index : int
+        Player index (0 or 1)
+    num_of_cards : int
+        Initial number of cards dealt to the player
+    
+    Strategy Logic
+    --------------
+    1. Analyzes initial hand to find the most common color
+    2. Adjusts priorities: dominant color cards get priority 5.0, others get 12.0
+    3. Event selection will prefer dominant color cards while respecting game rules
+    4. All game rule constraints are automatically respected (no deadlock risk)
+    """
+    logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: Starting color dominance strategy")
+    
+    # Track cards and their colors during initial deal
+    card_colors = {color: 0 for color in COLORS}
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+    
+    # Receive initial hand and count colors
+    for i in range(num_of_cards):
+        # Wait for this player's turn to receive a card
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        # Then wait for the actual card being dealt
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        
+        # Count colors
+        for color in COLORS:
+            if color in card_name:
+                card_colors[color] += 1
+                break
+        
+        # Store card info temporarily
+        card_events.append({
+            'name': card_name,
+            'original_priority': deal_card_event.priority
+        })
+    
+    # Determine dominant color (most common in hand)
+    dominant_color = max(card_colors, key=card_colors.get)
+    logger.debug(
+        f"[STRATEGY_COLOR_DOM] Player {index}: Color analysis: "
+        f"Red={card_colors['red']}, Blue={card_colors['blue']}, Green={card_colors['green']} "
+        f"→ Dominant color: {dominant_color.upper()} ({card_colors[dominant_color]} cards)"
+    )
+    
+    # Convert to BPEvents with adjusted priorities
+    adjusted_card_events = []
+    for card_info in card_events:
+        add_event_to_card_events_according_to_color_dominance(
+            index, 
+            card_info['name'], 
+            card_info['original_priority'],
+            adjusted_card_events,
+            dominant_color
+        )
+    
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: Game started! Prioritizing {dominant_color.upper()} cards")
+    
+    # Main game loop
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    no_more_cards_event = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+    next_turn = BPEvent("next_turn", priority=10.0)
+    
+    turn_count = 0
+    dominant_color_plays = 0
+    other_color_plays = 0
+    
+    while True:
+        turn_count += 1
+        
+        # Request cards with adjusted priorities
+        card_event = yield bp.sync(request=adjusted_card_events, waitFor=[draw_card_event])
+        
+        logger.debug(f"[STRATEGY_COLOR_DOM] Player {index} Turn {turn_count}: {card_event.name} (priority {card_event.priority})")
+        
+        if is_regular_card_event(card_event):
+            # Track and remove from hand
+            if dominant_color in card_event.name:
+                dominant_color_plays += 1
+                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: ✓ Played dominant color ({dominant_color})")
+            else:
+                other_color_plays += 1
+                color_played = None
+                for color in COLORS:
+                    if color in card_event.name:
+                        color_played = color
+                        break
+                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: ✗ Played off-color ({color_played})")
+            
+            adjusted_card_events.remove(card_event)
+        
+        elif is_draw_card_event(card_event):
+            # Draw a new card with appropriate priority
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            
+            add_event_to_card_events_according_to_color_dominance(
+                index,
+                card_name,
+                deal_card_event.priority,
+                adjusted_card_events,
+                dominant_color
+            )
+            
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                # Handle TAKI sequence
+                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: TAKI sequence starting")
+                adjusted_card_events.remove(card_event)
+                
+                # Add closed_taki
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                adjusted_card_events.append(closed_taki_event)
+                
+                # Play cards during TAKI sequence
+                while True:
+                    card_event = yield bp.sync(request=adjusted_card_events)
+                    adjusted_card_events.remove(card_event)
+                    
+                    if card_event.name == f"p_{index}_closed_taki":
+                        logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: TAKI sequence closed")
+                        break
+                
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            else:
+                # Other action cards (stop, plus_2, etc.)
+                # Note: change_color is never in adjusted_card_events, so this won't handle it
+                adjusted_card_events.remove(card_event)
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+        
+        # Announce turn completion and wait for it
+        if list_does_not_contain_card_events(adjusted_card_events):
+            yield bp.sync(request=no_more_cards_event)
+            logger.debug(
+                f"[STRATEGY_COLOR_DOM] Player {index}: Game ended. "
+                f"Dominant color ({dominant_color}) played: {dominant_color_plays} times, "
+                f"Other colors: {other_color_plays} times"
+            )
+            break
+        
+        # Request next_turn and wait for turn to complete
+        yield bp.sync(request=next_turn)
+        last_event = yield bp.sync(waitFor=[no_more_cards_event, next_turn])
+        
+        if "next_turn" in last_event.name:
+            logger.debug(f"[STRATEGY_COLOR_DOM] Player {index} | Remaining: {len(adjusted_card_events)} cards")
+            continue
+        elif "no_more_cards" in last_event.name:
+            logger.debug(
+                f"[STRATEGY_COLOR_DOM] Player {index}: Game ended. "
+                f"Dominant color ({dominant_color}) played: {dominant_color_plays} times, "
+                f"Other colors: {other_color_plays} times"
+            )
+            break
+
+
 def extract_card_color(event: BPEvent) -> str:
     card_str_index = event.name.find("card")
     card_color = event.name[card_str_index + 7:]
@@ -1565,6 +1773,7 @@ def init_b_program(starting_player=1):
                                       # basic_strategy_taki(0, NUM_OF_CARDS),
                                       # basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
                                       # strategy_block_super_taki_during_regular_taki(0),
+                                      # strategy_color_dominance(0, NUM_OF_CARDS),
                                       player_behavior(1, NUM_OF_CARDS),
                                       enforce_turns(2, starting_player),
                                       enforce_card_placement_rules(),
