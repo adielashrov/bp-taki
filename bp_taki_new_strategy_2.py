@@ -1155,94 +1155,86 @@ def enforce_card_placement_rules():
 @bp.thread
 def smart_change_color_pick(index: int = 0, num_of_cards: int = NUM_OF_CARDS):
     """
-    Smartly choose the color after playing change_color:
-    - Prefer the most frequent color currently in player's hand (tracked by this b-thread).
-    - Tie-break: red > blue > green (matches helper's deterministic order).
-    - IMPORTANT: block other selected_* by NAME (EventSet), NOT by bp.AllExcept(BPEvent(...)),
-      to avoid deadlocks due to BPEvent instance mismatch.
+    Smart picker for change_color selection for player `index` (use index=0).
+
+    IMPORTANT FIX:
+      - Track ONLY player `index` hand.
+      - Attribute a deal_p_* card to player `index` ONLY when preceded by deal_cards_to_player_{index}.
+        (deal_p_* alone has no player id, so tracking both players is unreliable.)
     """
 
-    # Track the player's hand color counts (ignoring non-colored / special where color is "")
-    color_counts = {c: 0 for c in COLORS}
+    # Estimated hand color counts for *this* player only
+    my_counts = {c: 0 for c in COLORS}
 
-    def add_card_to_counts(ev: BPEvent):
-        color, _ = extract_card_color_and_type(ev)
-        if color in color_counts:
-            color_counts[color] += 1
+    # When we see deal_cards_to_player_{index}, the next deal_p_* is for us
+    expecting_deal_for_me = False
 
-    def remove_card_from_counts(ev: BPEvent):
-        color, _ = extract_card_color_and_type(ev)
-        if color in color_counts and color_counts[color] > 0:
-            color_counts[color] -= 1
+    def add_to_my_hand(deal_ev: BPEvent):
+        # Convert deal_p_* -> p_{index}_* so we can reuse existing parsing
+        as_player_card = BPEvent(
+            remove_deal_prefix_and_add_player_index(deal_ev, index),
+            priority=deal_ev.priority
+        )
+        color, _ = extract_card_color_and_type(as_player_card)
+        if color in my_counts:
+            my_counts[color] += 1
 
-    # --- Initialization: wait for this player's dealing phase and absorb their initial hand ---
-    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
-    deal_player_cards_event_set = DealCardsEventSet()
+    def remove_from_my_hand(play_ev: BPEvent):
+        # play_ev is already p_{index}_...
+        color, _ = extract_card_color_and_type(play_ev)
+        if color in my_counts:
+            my_counts[color] = max(0, my_counts[color] - 1)
 
-    for _ in range(num_of_cards):
-        dealt = yield bp.sync(waitFor=deal_player_cards_event_set)
-        # Convert deal_p_* into p_{index}_* naming, same as player_behavior does
-        card_name = remove_deal_prefix_and_add_player_index(dealt, index)
-        add_card_to_counts(BPEvent(card_name, priority=dealt.priority))
+    def choose_best_color() -> str:
+        # Pick most frequent color in our hand; deterministic tie-break by COLORS order
+        best = COLORS[0]
+        best_cnt = -1
+        for c in COLORS:
+            if my_counts[c] > best_cnt:
+                best_cnt = my_counts[c]
+                best = c
+        return best
 
-    # Wait for game start (same barrier as player_behavior)
-    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
-
-    # Also track future draws (deal_p_* events happen after p_i_draw_card, but we can just watch all deals
-    # and only count those for our player name pattern).
+    # Main loop: watch all events, update counts, intervene only after p_{index}_change_color
     while True:
         ev = yield bp.sync(waitFor=bp.All())
 
         if ev.name == "end_game":
             return
 
-        # Track newly dealt cards to this player (after draws)
-        if ev.name.startswith("deal_p_"):
-            # deal_p_* does not encode player index; the program deals by issuing deal_cards_to_player_i first.
-            # Easiest robust way: detect when it is our player's dealing turn and then consume the next deal_p_*.
-            # (This matches how player_behavior waits for DealCardsEventSet after draw.)
-            # So we do nothing here.
-            pass
-
-        # When the program indicates it's dealing to this player, the next deal from DealCardsEventSet is ours:
+        # Anchor for attributing next deal_p_* to *this* player
         if ev.name == f"deal_cards_to_player_{index}":
-            dealt = yield bp.sync(waitFor=DealCardsEventSet())
-            card_name = remove_deal_prefix_and_add_player_index(dealt, index)
-            add_card_to_counts(BPEvent(card_name, priority=dealt.priority))
+            expecting_deal_for_me = True
             continue
 
-        # Track cards played by this player (remove from our counts)
+        # Consume the next dealt card if it's for us
+        if expecting_deal_for_me and ev.name.startswith("deal_p_"):
+            add_to_my_hand(ev)
+            expecting_deal_for_me = False
+            continue
+
+        # If we played a card, update our estimated hand (change_color has no color; safe no-op)
         if ev.name.startswith(f"p_{index}_"):
-            # If the player plays a colored card/stop/taki etc., it will remove a color from hand.
-            # change_color itself has color="" so remove_card_to_counts is a no-op there.
-            remove_card_from_counts(ev)
+            # Remove only if it has a color we track; super_taki/change_color won’t affect counts
+            remove_from_my_hand(ev)
 
-        # --- The actual strategy trigger: after we played change_color, force a smart selected_* ---
-        if ev.name == f"p_{index}_change_color":
-            # Pick best color by max count, tie-break by COLORS order (red, blue, green)
-            best_color = "red"
-            best_count = -1
-            for c in COLORS:
-                if color_counts[c] > best_count:
-                    best_count = color_counts[c]
-                    best_color = c
+            # If we just played change_color, force a smart selection
+            if ev.name == f"p_{index}_change_color":
+                best = choose_best_color()
+                chosen_name = f"selected_{best}"
 
-            chosen_name = f"selected_{best_color}"
-            chosen = BPEvent(chosen_name, priority=4.9)  # numerically smaller => higher priority than 5.0
+                # Priority: numerically smaller = higher priority; beat default 5.0
+                request_choice = BPEvent(chosen_name, priority=4.9)
 
-            # Block ONLY other selected_* (by name), so selection can proceed and we don't freeze the game.
-            block_other_selected = bp.EventSet(
-                lambda e, cn=chosen_name: isinstance(e, BPEvent)
-                and e.name.startswith("selected_")
-                and e.name != cn
-            )
+                # Block other selections by NAME (avoids BPEvent instance mismatch deadlocks)
+                block_others = bp.EventSet(
+                    lambda e, cn=chosen_name: hasattr(e, "name")
+                    and e.name.startswith("selected_")
+                    and e.name != cn
+                )
 
-            # Request our chosen selection; do not block unrelated events.
-            yield bp.sync(request=chosen, block=block_other_selected)
-
-            # After one selection happens, we’re done; enforce_card_placement_rules will request done_post_action.
+                yield bp.sync(request=request_choice, block=block_others)
             continue
-
 
 @bp.thread
 def identify_livelock():
