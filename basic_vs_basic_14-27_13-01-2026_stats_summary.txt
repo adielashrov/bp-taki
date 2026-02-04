@@ -1,0 +1,42 @@
+============================================================
+TAKI GAME SIMULATION RESULTS
+============================================================
+
+Strategies:
+  Player 0: basic
+  Player 1: basic
+
+Total Games Attempted: 100
+Completed: 100 | Errors/Incomplete: 0
+
+Player 0 Wins:   56 ( 56.0%)
+Player 1 Wins:   44 ( 44.0%)
+
+Draws: 0 | Deadlocks: 0 | Errors: 0
+
+Average Events per Game: 112.4
+
+[!] Note: Player 0 started ALL games (first-player advantage present!)
+
+Player 0 — Starting Position vs Outcome (2x2):
+
+                 |  P0 Wins | P0 Not Win
+-----------------+----------+------------
+P0 started       |       56 |         44
+P0 started second|        0 |          0
+
+Player 1 — Starting Position vs Outcome (2x2):
+
+                 |  P1 Wins | P1 Not Win
+-----------------+----------+------------
+P1 started       |        0 |          0
+P1 started second|       44 |         56
+
+Player 0 — Win Rates with 95% CI:
+  When starting:  56.0% [ 46.2%,  65.3%]
+  When second:    0.0% [  0.0%,   0.0%]
+
+Player 1 — Win Rates with 95% CI:
+  When starting:   0.0% [  0.0%,   0.0%]
+  When second:   44.0% [ 34.7%,  53.8%]
+============================================================

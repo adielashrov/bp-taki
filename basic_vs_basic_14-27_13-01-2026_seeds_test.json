@@ -1,0 +1,1023 @@
+{
+  "total_completed": 100,
+  "total_attempted": 100,
+  "player_0_wins": 56,
+  "player_1_wins": 44,
+  "player_0_win_rate": 56.00000000000001,
+  "player_1_win_rate": 44.0,
+  "errors": 0,
+  "draws": 0,
+  "deadlocks": 0,
+  "average_events_per_game": 112.39,
+  "starting_player_advantage": {
+    "starting_player_0_count": 100,
+    "starting_player_1_count": 0,
+    "wins_when_starting": 56,
+    "starter_win_rate": 56.00000000000001
+  },
+  "results": [
+    {
+      "game_number": 1,
+      "seed": 0,
+      "winner": 0,
+      "event_count": 150,
+      "starting_player": 0,
+      "duration_seconds": 0.469998,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 2,
+      "seed": 1,
+      "winner": 0,
+      "event_count": 72,
+      "starting_player": 0,
+      "duration_seconds": 0.177008,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 3,
+      "seed": 2,
+      "winner": 1,
+      "event_count": 109,
+      "starting_player": 0,
+      "duration_seconds": 0.302341,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 4,
+      "seed": 3,
+      "winner": 0,
+      "event_count": 65,
+      "starting_player": 0,
+      "duration_seconds": 0.129652,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 5,
+      "seed": 4,
+      "winner": 0,
+      "event_count": 104,
+      "starting_player": 0,
+      "duration_seconds": 0.212001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 6,
+      "seed": 5,
+      "winner": 0,
+      "event_count": 170,
+      "starting_player": 0,
+      "duration_seconds": 0.325603,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 7,
+      "seed": 6,
+      "winner": 0,
+      "event_count": 70,
+      "starting_player": 0,
+      "duration_seconds": 0.101,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 8,
+      "seed": 7,
+      "winner": 1,
+      "event_count": 79,
+      "starting_player": 0,
+      "duration_seconds": 0.141081,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 9,
+      "seed": 8,
+      "winner": 1,
+      "event_count": 142,
+      "starting_player": 0,
+      "duration_seconds": 0.250994,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 10,
+      "seed": 9,
+      "winner": 1,
+      "event_count": 69,
+      "starting_player": 0,
+      "duration_seconds": 0.108005,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 11,
+      "seed": 10,
+      "winner": 0,
+      "event_count": 73,
+      "starting_player": 0,
+      "duration_seconds": 0.122994,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 12,
+      "seed": 11,
+      "winner": 0,
+      "event_count": 106,
+      "starting_player": 0,
+      "duration_seconds": 0.197002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 13,
+      "seed": 12,
+      "winner": 0,
+      "event_count": 94,
+      "starting_player": 0,
+      "duration_seconds": 0.143002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 14,
+      "seed": 13,
+      "winner": 0,
+      "event_count": 95,
+      "starting_player": 0,
+      "duration_seconds": 0.163998,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 15,
+      "seed": 14,
+      "winner": 0,
+      "event_count": 189,
+      "starting_player": 0,
+      "duration_seconds": 0.385999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 16,
+      "seed": 15,
+      "winner": 1,
+      "event_count": 152,
+      "starting_player": 0,
+      "duration_seconds": 0.266977,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 17,
+      "seed": 16,
+      "winner": 0,
+      "event_count": 112,
+      "starting_player": 0,
+      "duration_seconds": 0.190543,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 18,
+      "seed": 17,
+      "winner": 1,
+      "event_count": 88,
+      "starting_player": 0,
+      "duration_seconds": 0.146997,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 19,
+      "seed": 18,
+      "winner": 0,
+      "event_count": 73,
+      "starting_player": 0,
+      "duration_seconds": 0.128,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 20,
+      "seed": 19,
+      "winner": 0,
+      "event_count": 108,
+      "starting_player": 0,
+      "duration_seconds": 0.199532,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 21,
+      "seed": 20,
+      "winner": 0,
+      "event_count": 76,
+      "starting_player": 0,
+      "duration_seconds": 0.130533,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 22,
+      "seed": 21,
+      "winner": 0,
+      "event_count": 101,
+      "starting_player": 0,
+      "duration_seconds": 0.168347,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 23,
+      "seed": 22,
+      "winner": 0,
+      "event_count": 103,
+      "starting_player": 0,
+      "duration_seconds": 0.171001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 24,
+      "seed": 23,
+      "winner": 1,
+      "event_count": 95,
+      "starting_player": 0,
+      "duration_seconds": 0.196001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 25,
+      "seed": 24,
+      "winner": 0,
+      "event_count": 97,
+      "starting_player": 0,
+      "duration_seconds": 0.194649,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 26,
+      "seed": 25,
+      "winner": 0,
+      "event_count": 81,
+      "starting_player": 0,
+      "duration_seconds": 0.12,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 27,
+      "seed": 26,
+      "winner": 1,
+      "event_count": 93,
+      "starting_player": 0,
+      "duration_seconds": 0.14654,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 28,
+      "seed": 27,
+      "winner": 0,
+      "event_count": 165,
+      "starting_player": 0,
+      "duration_seconds": 0.337888,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 29,
+      "seed": 28,
+      "winner": 0,
+      "event_count": 70,
+      "starting_player": 0,
+      "duration_seconds": 0.110657,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 30,
+      "seed": 29,
+      "winner": 1,
+      "event_count": 221,
+      "starting_player": 0,
+      "duration_seconds": 0.418999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 31,
+      "seed": 30,
+      "winner": 0,
+      "event_count": 114,
+      "starting_player": 0,
+      "duration_seconds": 0.179999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 32,
+      "seed": 31,
+      "winner": 0,
+      "event_count": 141,
+      "starting_player": 0,
+      "duration_seconds": 0.195084,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 33,
+      "seed": 32,
+      "winner": 1,
+      "event_count": 74,
+      "starting_player": 0,
+      "duration_seconds": 0.083998,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 34,
+      "seed": 33,
+      "winner": 1,
+      "event_count": 105,
+      "starting_player": 0,
+      "duration_seconds": 0.149539,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 35,
+      "seed": 34,
+      "winner": 1,
+      "event_count": 119,
+      "starting_player": 0,
+      "duration_seconds": 0.174997,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 36,
+      "seed": 35,
+      "winner": 1,
+      "event_count": 151,
+      "starting_player": 0,
+      "duration_seconds": 0.253999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 37,
+      "seed": 36,
+      "winner": 0,
+      "event_count": 152,
+      "starting_player": 0,
+      "duration_seconds": 0.245001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 38,
+      "seed": 37,
+      "winner": 0,
+      "event_count": 82,
+      "starting_player": 0,
+      "duration_seconds": 0.117,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 39,
+      "seed": 38,
+      "winner": 0,
+      "event_count": 174,
+      "starting_player": 0,
+      "duration_seconds": 0.309001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 40,
+      "seed": 39,
+      "winner": 1,
+      "event_count": 103,
+      "starting_player": 0,
+      "duration_seconds": 0.190601,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 41,
+      "seed": 40,
+      "winner": 1,
+      "event_count": 98,
+      "starting_player": 0,
+      "duration_seconds": 0.178283,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 42,
+      "seed": 41,
+      "winner": 1,
+      "event_count": 109,
+      "starting_player": 0,
+      "duration_seconds": 0.198609,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 43,
+      "seed": 42,
+      "winner": 0,
+      "event_count": 127,
+      "starting_player": 0,
+      "duration_seconds": 0.190545,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 44,
+      "seed": 43,
+      "winner": 0,
+      "event_count": 71,
+      "starting_player": 0,
+      "duration_seconds": 0.112071,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 45,
+      "seed": 44,
+      "winner": 0,
+      "event_count": 100,
+      "starting_player": 0,
+      "duration_seconds": 0.2,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 46,
+      "seed": 45,
+      "winner": 1,
+      "event_count": 114,
+      "starting_player": 0,
+      "duration_seconds": 0.215,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 47,
+      "seed": 46,
+      "winner": 1,
+      "event_count": 134,
+      "starting_player": 0,
+      "duration_seconds": 0.255839,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 48,
+      "seed": 47,
+      "winner": 0,
+      "event_count": 229,
+      "starting_player": 0,
+      "duration_seconds": 0.449081,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 49,
+      "seed": 48,
+      "winner": 0,
+      "event_count": 311,
+      "starting_player": 0,
+      "duration_seconds": 0.637541,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 50,
+      "seed": 49,
+      "winner": 1,
+      "event_count": 98,
+      "starting_player": 0,
+      "duration_seconds": 0.157003,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 51,
+      "seed": 50,
+      "winner": 1,
+      "event_count": 130,
+      "starting_player": 0,
+      "duration_seconds": 0.266003,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 52,
+      "seed": 51,
+      "winner": 1,
+      "event_count": 94,
+      "starting_player": 0,
+      "duration_seconds": 0.167996,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 53,
+      "seed": 52,
+      "winner": 0,
+      "event_count": 88,
+      "starting_player": 0,
+      "duration_seconds": 0.161537,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 54,
+      "seed": 53,
+      "winner": 1,
+      "event_count": 82,
+      "starting_player": 0,
+      "duration_seconds": 0.14461,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 55,
+      "seed": 54,
+      "winner": 1,
+      "event_count": 132,
+      "starting_player": 0,
+      "duration_seconds": 0.265001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 56,
+      "seed": 55,
+      "winner": 0,
+      "event_count": 73,
+      "starting_player": 0,
+      "duration_seconds": 0.117544,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 57,
+      "seed": 56,
+      "winner": 0,
+      "event_count": 86,
+      "starting_player": 0,
+      "duration_seconds": 0.150151,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 58,
+      "seed": 57,
+      "winner": 0,
+      "event_count": 86,
+      "starting_player": 0,
+      "duration_seconds": 0.167002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 59,
+      "seed": 58,
+      "winner": 0,
+      "event_count": 95,
+      "starting_player": 0,
+      "duration_seconds": 0.231004,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 60,
+      "seed": 59,
+      "winner": 1,
+      "event_count": 74,
+      "starting_player": 0,
+      "duration_seconds": 0.156998,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 61,
+      "seed": 60,
+      "winner": 0,
+      "event_count": 72,
+      "starting_player": 0,
+      "duration_seconds": 0.143087,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 62,
+      "seed": 61,
+      "winner": 0,
+      "event_count": 68,
+      "starting_player": 0,
+      "duration_seconds": 0.150003,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 63,
+      "seed": 62,
+      "winner": 0,
+      "event_count": 70,
+      "starting_player": 0,
+      "duration_seconds": 0.147327,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 64,
+      "seed": 63,
+      "winner": 0,
+      "event_count": 204,
+      "starting_player": 0,
+      "duration_seconds": 0.518567,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 65,
+      "seed": 64,
+      "winner": 0,
+      "event_count": 78,
+      "starting_player": 0,
+      "duration_seconds": 0.162014,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 66,
+      "seed": 65,
+      "winner": 0,
+      "event_count": 74,
+      "starting_player": 0,
+      "duration_seconds": 0.116997,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 67,
+      "seed": 66,
+      "winner": 1,
+      "event_count": 145,
+      "starting_player": 0,
+      "duration_seconds": 0.282001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 68,
+      "seed": 67,
+      "winner": 0,
+      "event_count": 90,
+      "starting_player": 0,
+      "duration_seconds": 0.150007,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 69,
+      "seed": 68,
+      "winner": 0,
+      "event_count": 78,
+      "starting_player": 0,
+      "duration_seconds": 0.120996,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 70,
+      "seed": 69,
+      "winner": 1,
+      "event_count": 76,
+      "starting_player": 0,
+      "duration_seconds": 0.123225,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 71,
+      "seed": 70,
+      "winner": 0,
+      "event_count": 80,
+      "starting_player": 0,
+      "duration_seconds": 0.129006,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 72,
+      "seed": 71,
+      "winner": 0,
+      "event_count": 75,
+      "starting_player": 0,
+      "duration_seconds": 0.103996,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 73,
+      "seed": 72,
+      "winner": 0,
+      "event_count": 182,
+      "starting_player": 0,
+      "duration_seconds": 0.32463,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 74,
+      "seed": 73,
+      "winner": 0,
+      "event_count": 77,
+      "starting_player": 0,
+      "duration_seconds": 0.100994,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 75,
+      "seed": 74,
+      "winner": 1,
+      "event_count": 96,
+      "starting_player": 0,
+      "duration_seconds": 0.191003,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 76,
+      "seed": 75,
+      "winner": 0,
+      "event_count": 134,
+      "starting_player": 0,
+      "duration_seconds": 0.261043,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 77,
+      "seed": 76,
+      "winner": 1,
+      "event_count": 101,
+      "starting_player": 0,
+      "duration_seconds": 0.211003,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 78,
+      "seed": 77,
+      "winner": 0,
+      "event_count": 121,
+      "starting_player": 0,
+      "duration_seconds": 0.281999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 79,
+      "seed": 78,
+      "winner": 1,
+      "event_count": 173,
+      "starting_player": 0,
+      "duration_seconds": 0.373623,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 80,
+      "seed": 79,
+      "winner": 0,
+      "event_count": 83,
+      "starting_player": 0,
+      "duration_seconds": 0.156999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 81,
+      "seed": 80,
+      "winner": 1,
+      "event_count": 155,
+      "starting_player": 0,
+      "duration_seconds": 0.386001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 82,
+      "seed": 81,
+      "winner": 1,
+      "event_count": 179,
+      "starting_player": 0,
+      "duration_seconds": 0.414004,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 83,
+      "seed": 82,
+      "winner": 0,
+      "event_count": 148,
+      "starting_player": 0,
+      "duration_seconds": 0.381002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 84,
+      "seed": 83,
+      "winner": 1,
+      "event_count": 159,
+      "starting_player": 0,
+      "duration_seconds": 0.351882,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 85,
+      "seed": 84,
+      "winner": 0,
+      "event_count": 203,
+      "starting_player": 0,
+      "duration_seconds": 0.4436,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 86,
+      "seed": 85,
+      "winner": 1,
+      "event_count": 115,
+      "starting_player": 0,
+      "duration_seconds": 0.259005,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 87,
+      "seed": 86,
+      "winner": 1,
+      "event_count": 88,
+      "starting_player": 0,
+      "duration_seconds": 0.194002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 88,
+      "seed": 87,
+      "winner": 1,
+      "event_count": 75,
+      "starting_player": 0,
+      "duration_seconds": 0.124999,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 89,
+      "seed": 88,
+      "winner": 0,
+      "event_count": 196,
+      "starting_player": 0,
+      "duration_seconds": 0.462067,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 90,
+      "seed": 89,
+      "winner": 1,
+      "event_count": 101,
+      "starting_player": 0,
+      "duration_seconds": 0.196002,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 91,
+      "seed": 90,
+      "winner": 1,
+      "event_count": 112,
+      "starting_player": 0,
+      "duration_seconds": 0.209996,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 92,
+      "seed": 91,
+      "winner": 1,
+      "event_count": 99,
+      "starting_player": 0,
+      "duration_seconds": 0.183618,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 93,
+      "seed": 92,
+      "winner": 1,
+      "event_count": 109,
+      "starting_player": 0,
+      "duration_seconds": 0.252926,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 94,
+      "seed": 93,
+      "winner": 0,
+      "event_count": 110,
+      "starting_player": 0,
+      "duration_seconds": 0.225624,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 95,
+      "seed": 94,
+      "winner": 1,
+      "event_count": 121,
+      "starting_player": 0,
+      "duration_seconds": 0.268997,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 96,
+      "seed": 95,
+      "winner": 1,
+      "event_count": 71,
+      "starting_player": 0,
+      "duration_seconds": 0.121998,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 97,
+      "seed": 96,
+      "winner": 0,
+      "event_count": 72,
+      "starting_player": 0,
+      "duration_seconds": 0.119997,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 98,
+      "seed": 97,
+      "winner": 1,
+      "event_count": 134,
+      "starting_player": 0,
+      "duration_seconds": 0.250004,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 99,
+      "seed": 98,
+      "winner": 1,
+      "event_count": 77,
+      "starting_player": 0,
+      "duration_seconds": 0.153996,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    },
+    {
+      "game_number": 100,
+      "seed": 99,
+      "winner": 1,
+      "event_count": 70,
+      "starting_player": 0,
+      "duration_seconds": 0.134001,
+      "ended_in_deadlock": false,
+      "ended_in_draw": false
+    }
+  ],
+  "player_0_strategy": "basic",
+  "player_1_strategy": "basic",
+  "timestamp": "14-27_13-01-2026"
+}
