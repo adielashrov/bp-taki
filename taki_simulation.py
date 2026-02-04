@@ -272,12 +272,27 @@ class SimulationStats:
             "second_ci": ci_second,
         }
 
-    def summary(self) -> str:
+    def summary(self, player_0_strategy: str = None, player_1_strategy: str = None) -> str:
         """Generate a summary string of the statistics."""
         lines = [
             "=" * 60,
             "TAKI GAME SIMULATION RESULTS",
             "=" * 60,
+        ]
+        
+        # Add strategies if provided
+        if player_0_strategy is not None or player_1_strategy is not None:
+            lines.extend([
+                "",
+                "Strategies:",
+            ])
+            if player_0_strategy is not None:
+                lines.append(f"  Player 0: {player_0_strategy}")
+            if player_1_strategy is not None:
+                lines.append(f"  Player 1: {player_1_strategy}")
+        
+        lines.extend([
+            "",
             f"Total Games Attempted: {self.total_attempted}",
             f"Completed: {self.total_completed} | Errors/Incomplete: {self.errors}",
             "",
@@ -291,7 +306,7 @@ class SimulationStats:
             f"Draws: {self.draws} | Deadlocks: {self.deadlocks} | Errors: {self.errors}",
             "",
             f"Average Events per Game: {self.average_events_per_game:.1f}",
-        ]
+        ])
         
         # Add starting player advantage analysis if games have varied starting players
         adv = self.starting_player_advantage()
@@ -574,8 +589,6 @@ def run_single_game(
     GameResult or None
         Result of the game, or None if an error occurred
     """
-    # Print which seed we're about to run (BEFORE anything happens)
-    print(f"Starting game {game_number} with seed {seed}...", flush=True)
     
     # Temporarily adjust logging if silent mode
     if silent:
@@ -713,11 +726,6 @@ def run_simulation(
         if seed == 39:
             print("Not Skipping seed 39 to catch a livelock issue.")
             # seed += 1  # Skip seed 39 due to known issues
-
-        # Print progress
-        if game_number % progress_interval == 0 or game_number == 1:
-            print(f"Running game {game_number}/{num_games} (seed={seed})...")
-        
         # Run the game
         result = run_single_game(
             game_number=game_number,
@@ -743,7 +751,7 @@ def run_simulation(
     return stats
 
 
-def save_results(stats: SimulationStats, filename: str = None):
+def save_results(stats: SimulationStats, filename: str = None, player_0_strategy: str = None, player_1_strategy: str = None, timestamp: str = None):
     """
     Save simulation results to a JSON file.
     
@@ -753,31 +761,61 @@ def save_results(stats: SimulationStats, filename: str = None):
         Statistics to save
     filename : str, optional
         Output filename. If None, generates a timestamped name.
+    player_0_strategy : str, optional
+        Strategy used by player 0
+    player_1_strategy : str, optional
+        Strategy used by player 1
+    timestamp : str, optional
+        Timestamp of the simulation
     """
     if filename is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"taki_simulation_results_{timestamp}.json"
     
+    # Add metadata to the output
+    output_data = stats.to_dict()
+    if player_0_strategy is not None:
+        output_data['player_0_strategy'] = player_0_strategy
+    if player_1_strategy is not None:
+        output_data['player_1_strategy'] = player_1_strategy
+    if timestamp is not None:
+        output_data['timestamp'] = timestamp
+    
     with open(filename, 'w') as f:
-        json.dump(stats.to_dict(), f, indent=2)
+        json.dump(output_data, f, indent=2)
     
     print(f"\nResults saved to: {filename}")
 
 
 if __name__ == "__main__":
 
+
+    player_0_strategy = "basic"
+    player_1_strategy = "basic"
+
+
     stats = run_simulation(
-        num_games=1000,
+        num_games=100,
         start_seed=0,
-        starting_player=-1,
-        player_0_strategy="basic",
-        player_1_strategy="basic",
+        starting_player=1,
+        player_0_strategy=player_0_strategy,
+        player_1_strategy=player_1_strategy,
         silent=False,
         progress_interval=5
     )
     
     # Print summary
-    print("\n" + stats.summary())
+    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
+    print("\n" + summary_text)
+    
+    # Save summary to file with timestamp
+    timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
+    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
+    with open(summary_filename, 'w') as f:
+        f.write(summary_text)
+    print(f"Summary saved to: {summary_filename}")
     
     # Save results
-    save_results(stats, "seeds_test.json")
+    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
+    save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
