@@ -1195,6 +1195,16 @@ def smart_change_color_pick(index: int = 0, num_of_cards: int = NUM_OF_CARDS):
                 best = c
         return best
 
+    def create_block_others(chosen_selected_name: str):
+        def block_others(event: BPEvent) -> bool:
+            return (
+                hasattr(event, "name")
+                and event.name.startswith("selected_")
+                and event.name != chosen_selected_name   # exact match on "selected_{red/blue/green}"
+            )
+        return block_others
+    
+
     # Main loop: watch all events, update counts, intervene only after p_{index}_change_color
     while True:
         ev = yield bp.sync(waitFor=bp.All())
@@ -1227,10 +1237,9 @@ def smart_change_color_pick(index: int = 0, num_of_cards: int = NUM_OF_CARDS):
                 request_choice = BPEvent(chosen_name, priority=4.9)
 
                 # Block other selections by NAME (avoids BPEvent instance mismatch deadlocks)
+                block_others_function = create_block_others(chosen_name)
                 block_others = bp.EventSet(
-                    lambda e, cn=chosen_name: hasattr(e, "name")
-                    and e.name.startswith("selected_")
-                    and e.name != cn
+                    block_others_function
                 )
 
                 yield bp.sync(request=request_choice, block=block_others)
