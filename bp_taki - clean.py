@@ -679,6 +679,7 @@ def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
         if not deal_cards_events:  # imagine an infinite pile of cards.
             deal_cards_events = create_deal_events(init_cards_events())
         
+        yield bp.sync(request=BPEvent(f"deal_cards_to_player_{player_id}", priority=10.0))
         last_event = yield bp.sync(request=deal_cards_events)
         deal_cards_events.remove(last_event)
 
@@ -815,10 +816,11 @@ def add_dummy_events(index, card_events, color):
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
-    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
     card_events = []
     deal_player_cards_event_set = DealCardsEventSet()
     for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
         card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
         card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
@@ -836,6 +838,7 @@ def player_behavior(index, num_of_cards=2):
             card_events.remove(card_event)
         # If there is a draw card event, wait for a card to be dealt.
         elif is_draw_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
