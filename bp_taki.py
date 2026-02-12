@@ -124,7 +124,7 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
         # 🔍 DEBUG: logger.debug only when checking TAKI cards (reduce noise)
         # if "taki" in e.name.lower() or allowed:
-            # symbol = "✓" if allowed else "✗"
+            # symbol = "v" if allowed else "x"
             # logger.debug(f"[PLACEMENT_CHECK] {symbol} {e.name:30} | Reason: {reason if allowed else 'no match'}")
 
         return allowed
@@ -369,8 +369,8 @@ def create_block_set_color_only(color: str):
         Notes
         -----
         The regex patterns are:
-        - r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$" for colored cards
-        - r"^p_\d+_super_taki$" for super_taki (no color suffix)
+        - "^p_\\d+_(card_\\d+|stop|plus_2)_(red|green|blue)$" for colored cards
+        - "^p_\\d+_super_taki$" for super_taki (no color suffix)
         """
         # Match colored cards OR super_taki (which has no color suffix)
         return (
@@ -549,7 +549,7 @@ def is_any_taki_event(e):
     result = is_taki_card_event(e) or is_super_taki_event(e)
     # if result:
     #    taki_type = "Regular TAKI" if is_taki_card_event(e) else "Super TAKI"
-    #    logger.debug(f"[DEBUG is_any_taki_event] ✓ {taki_type} detected: {e.name}")
+    #    logger.debug(f"[DEBUG is_any_taki_event] v {taki_type} detected: {e.name}")
     return result
 
 def is_plus_2_card_event(e: BPEvent) -> bool:
@@ -1322,7 +1322,7 @@ def strategy_color_dominance(index, num_of_cards=2):
             # Track and remove from hand
             if dominant_color in card_event.name:
                 dominant_color_plays += 1
-                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: ✓ Played dominant color ({dominant_color})")
+                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: Played dominant color ({dominant_color})")
             else:
                 other_color_plays += 1
                 color_played = None
@@ -1330,7 +1330,7 @@ def strategy_color_dominance(index, num_of_cards=2):
                     if color in card_event.name:
                         color_played = color
                         break
-                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: ✗ Played off-color ({color_played})")
+                logger.debug(f"[STRATEGY_COLOR_DOM] Player {index}: Played off-color ({color_played})")
             
             adjusted_card_events.remove(card_event)
         
@@ -1539,6 +1539,20 @@ def get_taki_mode_color(last_event, card_color):
 
     return card_color
 
+@bp.thread
+def enforce_card_placement_rules_BROKEN():
+    """
+    TEMPORARILY BROKEN VERSION - allows illegal moves for testing
+    """
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
+    last_event = yield bp.sync(waitFor=leading_card_event_set)
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    
+    # INTENTIONAL BUG: Don't block anything - allow any card!
+    while True:
+        last_event = yield bp.sync(waitFor=general_player_event_set)
+        # Just track events, don't enforce any rules
 
 @bp.thread
 def enforce_card_placement_rules():
@@ -1558,6 +1572,7 @@ def enforce_card_placement_rules():
             different_colors_or_types_event_set = bp.EventSetsDifference(all_player_events(),
                                                                          init_selected_color_or_type_event_set(
                                                                              card_color, card_type))
+            # different_colors_or_types_event_set = bp.EventSet(lambda e: False)  # Block nothing!
 
         elif is_change_color_event(last_event):
             selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
@@ -1749,6 +1764,237 @@ def verify_turn_alternation():
         # else: same active_player_id again within the same turn → OK (multi-action turn)
 
 
+@bp.thread
+def test_regular_card_placement_rules():
+    """
+    Regression test: Verifies regular numbered cards follow placement rules.
+
+    Scope: ONLY regular numbered cards (card_1 through card_9)
+    Rule (outside TAKI): Must match either COLOR or TYPE of the previous leading card.
+    Rule (during TAKI): Must match TAKI color only (type does not matter).
+
+    Does NOT validate the legality of special cards themselves (TAKI / SUPER_TAKI / STOP / CHANGE_COLOR),
+    but it *does* track them as the new leading context so that regular-card validation is meaningful.
+
+    This test only monitors (waitFor) and never interferes with gameplay.
+    """
+
+    logger.info("[TEST_REGULAR_CARDS] Test starting...")
+
+    # ------------------------------------------------------------
+    # Initialize from the leading card
+    # ------------------------------------------------------------
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
+    lead_event = yield bp.sync(waitFor=leading_card_event_set)
+    last_color, last_type = extract_card_color_and_type(lead_event)
+
+    logger.debug(
+        f"[TEST_REGULAR_CARDS] Initialized from leading card: {lead_event.name} -> {last_color}/{last_type}"
+    )
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    logger.info("[TEST_REGULAR_CARDS] Monitoring regular card placement...")
+
+    # ------------------------------------------------------------
+    # TAKI-mode tracking
+    # ------------------------------------------------------------
+    in_taki_mode = False
+    taki_color = None
+    
+    # If cards are played during TAKI, the *last* one becomes the new leading card after closed_taki
+    taki_last_color = None
+    taki_last_type = None
+
+    # ------------------------------------------------------------
+    # Main event monitoring loop
+    # ------------------------------------------------------------
+    while True:
+        event = yield bp.sync(waitFor=general_player_event_set)
+
+        # ------------------------------------------------------------
+        # Game ended - test passed
+        # ------------------------------------------------------------
+        if event.name == "end_game":
+            logger.info("[TEST_REGULAR_CARDS] ✓ Test PASSED - all regular cards followed placement rules")
+            break
+
+        # ------------------------------------------------------------
+        # Exit TAKI mode when we see closed_taki
+        # ------------------------------------------------------------
+        if "closed_taki" in event.name:
+            if in_taki_mode:
+                logger.debug("[TEST_REGULAR_CARDS] Exiting TAKI mode")
+
+                # If any cards were played during TAKI, they become the new leading card
+                if taki_last_color is not None and taki_last_type is not None:
+                    last_color, last_type = taki_last_color, taki_last_type
+                    logger.debug(
+                        f"[TEST_REGULAR_CARDS] Post-TAKI leading card set to last TAKI-seq card: "
+                        f"{last_color}/{last_type}"
+                    )
+                # else: keep last_color/last_type as the TAKI card itself
+
+                in_taki_mode = False
+                taki_color = None
+                taki_last_color = None
+                taki_last_type = None
+
+            continue  # Ignore the closed_taki event itself
+        
+        # ------------------------------------------------------------
+        # Ignore protocol/system events
+        # ------------------------------------------------------------
+        if (
+            event.name.startswith("deal_")
+            or "draw_card" in event.name
+            or "no_more_cards" in event.name
+            or event.name == "next_turn"
+            or event.name == "done_post_action"
+        ):
+            continue
+
+        # ------------------------------------------------------------
+        # Enter TAKI mode (Regular TAKI or Super TAKI)
+        # ------------------------------------------------------------
+        if is_any_taki_event(event):
+            in_taki_mode = True
+            
+            if is_taki_card_event(event):
+                # Regular TAKI has its own color
+                card_color, card_type = extract_card_color_and_type(event)
+                taki_color = card_color
+                if taki_color is None:
+                    assert False, f"Regular TAKI played but no color parsed (event={event.name})"
+                last_color, last_type = taki_color, "TAKI"
+                logger.debug(f"[TEST_REGULAR_CARDS] Entering TAKI mode: color={taki_color}")
+            else:
+                # Super TAKI inherits previous color
+                if last_color is None:
+                    logger.error("=" * 60)
+                    logger.error("[TEST_REGULAR_CARDS] ✗ TEST FAILED - Super TAKI but no color to inherit!")
+                    logger.error(f"  Event: {event.name}")
+                    logger.error("=" * 60)
+                    assert False, f"Super TAKI played but no prior color to inherit (event={event.name})"
+                
+                taki_color = last_color
+                last_type = "SUPER_TAKI"
+                logger.debug(f"[TEST_REGULAR_CARDS] Entering SUPER_TAKI mode: inherited color={taki_color}")
+            
+            # Reset last-card-in-sequence trackers for this TAKI sequence
+            taki_last_color = None
+            taki_last_type = None
+        
+            logger.debug(
+                f"[TEST_REGULAR_CARDS] Tracking updated (no validation): {event.name} -> {last_color}/{last_type}"
+            )
+            continue
+        
+        # ------------------------------------------------------------
+        # CHANGE_COLOR (wait for selected_<color>)
+        # ------------------------------------------------------------
+        if is_change_color_event(event):
+            selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+            color_event = yield bp.sync(waitFor=selected_color_events)
+
+            selected_color, _ = extract_card_color_and_type(color_event)
+            
+            if selected_color is None:
+                assert False, f"change_color played but selection color not parsed (event={color_event.name})"
+
+            if in_taki_mode:
+                logger.warning(
+                    "[TEST_REGULAR_CARDS] ! change_color during TAKI - "
+                    "this is unexpected; continuing test with updated leading color."
+                )
+                taki_color = selected_color
+                taki_last_color = selected_color
+                taki_last_type = "CHANGE_COLOR"
+
+            last_color = selected_color
+            last_type = "CHANGE_COLOR"
+
+            logger.debug(f"[TEST_REGULAR_CARDS] Color changed to: {selected_color}/CHANGE_COLOR")
+            continue
+
+        # ------------------------------------------------------------
+        # STOP (track differently inside vs. outside TAKI)
+        # ------------------------------------------------------------
+        if is_stop_card_event(event):
+            card_color, card_type = extract_card_color_and_type(event)
+            
+            if in_taki_mode:
+                # Track as last card in TAKI sequence
+                taki_last_color, taki_last_type = card_color, card_type
+                logger.debug(
+                    f"[TEST_REGULAR_CARDS] Stop during TAKI (tracked as last TAKI card): "
+                    f"{event.name} -> {card_color}/{card_type}"
+                )
+            else:
+                # Outside TAKI: becomes new leading card
+                last_color, last_type = card_color, card_type
+                logger.debug(
+                    f"[TEST_REGULAR_CARDS] Tracking updated (no validation): {event.name} -> {last_color}/{last_type}"
+                )
+            continue
+
+        # ------------------------------------------------------------
+        # Validate REGULAR numbered cards ONLY (card_1..card_9)
+        # ------------------------------------------------------------
+        if is_regular_card_event(event):
+            card_color, card_type = extract_card_color_and_type(event)
+
+            if in_taki_mode:
+                # During TAKI: must match TAKI color only
+                if card_color != taki_color:
+                    logger.error("=" * 60)
+                    logger.error("[TEST_REGULAR_CARDS] X TEST FAILED - Illegal card during TAKI!")
+                    logger.error(f"  TAKI color:      {taki_color}")
+                    logger.error(f"  Played:          {event.name}")
+                    logger.error(f"  Card color:      {card_color} ✗")
+                    logger.error("=" * 60)
+                    assert False, (
+                        f"TAKI color violation: {event.name} (color={card_color}) "
+                        f"doesn't match TAKI color {taki_color}"
+                    )
+                
+                logger.debug(
+                    f"[TEST_REGULAR_CARDS] V Legal in TAKI: {event.name} (matched TAKI color {taki_color})"
+                )
+
+                # Track as last played card in TAKI sequence
+                taki_last_color, taki_last_type = card_color, card_type
+                continue
+
+            # Outside TAKI: must match color OR type
+            color_matches = (card_color == last_color)
+            type_matches = (card_type == last_type)
+
+            if not (color_matches or type_matches):
+                logger.error("=" * 60)
+                logger.error("[TEST_REGULAR_CARDS] X TEST FAILED - Illegal regular card placement!")
+                logger.error(f"  Previous leading: {last_color}/{last_type}")
+                logger.error(f"  Played:          {event.name}")
+                logger.error(f"  Card color:      {card_color} {'V' if color_matches else 'X'}")
+                logger.error(f"  Card type:       {card_type} {'V' if type_matches else 'X'}")
+                logger.error("=" * 60)
+                assert False, (
+                    f"Regular card placement violated: {event.name} "
+                    f"(color={card_color}, type={card_type}) doesn't match "
+                    f"previous (color={last_color}, type={last_type})"
+                )
+
+            logger.debug(
+                f"[TEST_REGULAR_CARDS] V Legal regular: {event.name} "
+                f"(matched {'color' if color_matches else 'type'})"
+            )
+            last_color, last_type = card_color, card_type
+            continue
+
+        # ------------------------------------------------------------
+        # Everything else: ignore with breadcrumb
+        # ------------------------------------------------------------
+        logger.debug(f"[TEST_REGULAR_CARDS] Ignored unclassified event: {event.name}")
+
 def setup_logger():
 
     # Console Handler
@@ -1770,22 +2016,36 @@ def setup_logger():
 
 
 def init_b_program(starting_player=1):
-    b_program = bp.BProgram(bthreads=[game_manager(),
-                                      deal_cards(2, NUM_OF_CARDS, starting_player),
-                                      player_behavior(0, NUM_OF_CARDS),
-                                      # basic_strategy_taki(0, NUM_OF_CARDS),
-                                      # basic_strategy_taki_and_super_taki(0, NUM_OF_CARDS),
-                                      # strategy_block_super_taki_during_regular_taki(0),
-                                      # strategy_color_dominance(0, NUM_OF_CARDS),
-                                      player_behavior(1, NUM_OF_CARDS),
-                                      enforce_turns(2, starting_player),
-                                      enforce_card_placement_rules(),
-                                      identify_deadlock(),
-                                      identify_livelock(),
-                                      verify_turn_alternation()],
-                                     # detect_illegal_post_game_moves()],
-                            event_selection_strategy=EventPrioritySelectionStrategy(),
-                            listener=LogBProgramRunnerListener(logger=logger))
+    
+    enable_tests = True
+   
+    # Core game threads
+    game_threads = [
+        game_manager(),
+        deal_cards(2, NUM_OF_CARDS, starting_player),
+        player_behavior(0, NUM_OF_CARDS),
+        player_behavior(1, NUM_OF_CARDS),
+        enforce_turns(2, starting_player),
+        enforce_card_placement_rules_BROKEN(),
+        identify_deadlock(),
+        identify_livelock(),
+        verify_turn_alternation()
+    ]
+    
+    # Regression test threads
+    test_threads = []
+    if enable_tests:
+        test_threads = [
+            test_regular_card_placement_rules(),  # Test 1: Regular cards
+        ]
+        logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
+    
+    b_program = bp.BProgram(
+        bthreads=game_threads + test_threads,
+        event_selection_strategy=EventPrioritySelectionStrategy(),
+        listener=LogBProgramRunnerListener(logger=logger)
+    )
+
     return b_program
 
 def build_b_program(
