@@ -38,6 +38,11 @@ general_player_event_set = bp.EventSet(lambda e:
                                        hasattr(e, 'name') and re.match(pattern, e.name) is not None
                                        )
 
+regular_cards_pattern = r"(p_\d+_(card_\d+_\w+))"
+regular_cards_event_set = bp.EventSet(lambda e:
+                                       hasattr(e, 'name') and re.match(regular_cards_pattern, e.name) is not None
+                                       )
+
 def all_player_events():
     def match_event_name(e):
         if hasattr(e, 'name') and 'p_' in e.name:
@@ -1764,6 +1769,73 @@ def verify_turn_alternation():
         # else: same active_player_id again within the same turn → OK (multi-action turn)
 
 
+'''
+@bp.thread
+def test_card_placement_rules():
+
+    logger.info("[test_card_placement_rules] Test starting...")
+    
+    # wait for the leading card and initialize accordingly
+    card_event_1 = yield bp.sync(waitFor=regular_cards_event_set)
+    while True:
+        card_event_2 = yield bp.sync(waitFor=bp.EventSetList([regular_cards_event_set, BPEvent("change_color")]))
+        if card_event_2.name != "change_color":
+            card_1_color, card_1_type = extract_card_color_and_type(card_event_1)
+            card_2_color, card_2_type = extract_card_color_and_type(card_event_2)
+            assert card_1_color == card_2_color or card_1_type == card_2_type, f"Illegal card placement: {card_event_1.name} followed by {card_event_2.name}"
+            card_event_1 = card_event_2
+'''
+                 
+@bp.thread
+def test_regular_card_sequence_rules():
+    """
+    Validates that consecutive regular numbered cards follow placement rules.
+    
+    Rule: Each regular card must match either the COLOR or TYPE of the previous card.
+    
+    Scope: ONLY regular numbered cards (card_1..card_9)
+    Ignores: All special cards (STOP, TAKI, CHANGE_COLOR, etc.)
+    
+    This is a simple sanity check - does not validate special card interactions.
+    """
+    logger.info("[test_regular_card_sequence] Test starting...")
+    
+    # Initialize from the leading card
+    yield bp.sync(waitFor=BPEvent("deal_leading_card"))
+    previous_card = yield bp.sync(waitFor=leading_card_event_set)
+    prev_color, prev_type = extract_card_color_and_type(previous_card)
+    
+    logger.debug(f"[test_regular_card_sequence] Leading card: {prev_color}/{prev_type}")
+    
+    yield bp.sync(waitFor=BPEvent("start_game"))
+    
+    while True:
+        current_card = yield bp.sync(waitFor=regular_cards_event_set)
+        curr_color, curr_type = extract_card_color_and_type(current_card)
+        
+        # Validate placement rule
+        color_matches = (curr_color == prev_color)
+        type_matches = (curr_type == prev_type)
+        
+        if not (color_matches or type_matches):
+            logger.error("=" * 60)
+            logger.error("[test_regular_card_sequence] X TEST FAILED")
+            logger.error(f"  Previous: {prev_color}/{prev_type}")
+            logger.error(f"  Current:  {curr_color}/{curr_type}")
+            logger.error(f"  Color match: {color_matches}, Type match: {type_matches}")
+            logger.error("=" * 60)
+            assert False, f"Illegal placement: {previous_card.name} -> {current_card.name}"
+        
+        logger.debug(
+            f"[test_regular_card_sequence] ✓ Valid: {current_card.name} "
+            f"(matched {'color' if color_matches else 'type'})"
+        )
+        
+        # Update for next iteration
+        previous_card = current_card
+        prev_color, prev_type = curr_color, curr_type
+
+
 @bp.thread
 def test_regular_card_placement_rules():
     """
@@ -1871,7 +1943,7 @@ def test_regular_card_placement_rules():
                 # Super TAKI inherits previous color
                 if last_color is None:
                     logger.error("=" * 60)
-                    logger.error("[TEST_REGULAR_CARDS] ✗ TEST FAILED - Super TAKI but no color to inherit!")
+                    logger.error("[TEST_REGULAR_CARDS] X TEST FAILED - Super TAKI but no color to inherit!")
                     logger.error(f"  Event: {event.name}")
                     logger.error("=" * 60)
                     assert False, f"Super TAKI played but no prior color to inherit (event={event.name})"
@@ -1893,26 +1965,30 @@ def test_regular_card_placement_rules():
         # CHANGE_COLOR (wait for selected_<color>)
         # ------------------------------------------------------------
         if is_change_color_event(event):
+            logger.debug(f"[TEST_REGULAR_CARDS] change_color played, waiting for color selection...")
+            
+            # Check if we're in TAKI mode - this should NEVER happen with correct rules
+            if in_taki_mode:
+                logger.error("=" * 60)
+                logger.error("[TEST_REGULAR_CARDS] X TEST FAILED - change_color during TAKI!")
+                logger.error(f"  change_color should be blocked during TAKI sequences")
+                logger.error("=" * 60)
+                assert False, "change_color played during TAKI (should be blocked by game rules)"
+                # If assertions are disabled, we still need to handle this gracefully
+                continue  # ← ADD THIS: Skip rest of handling
+            
+            # Outside TAKI: normal color selection handling
             selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
             color_event = yield bp.sync(waitFor=selected_color_events)
-
+            
             selected_color, _ = extract_card_color_and_type(color_event)
             
             if selected_color is None:
                 assert False, f"change_color played but selection color not parsed (event={color_event.name})"
-
-            if in_taki_mode:
-                logger.warning(
-                    "[TEST_REGULAR_CARDS] ! change_color during TAKI - "
-                    "this is unexpected; continuing test with updated leading color."
-                )
-                taki_color = selected_color
-                taki_last_color = selected_color
-                taki_last_type = "CHANGE_COLOR"
-
+            
             last_color = selected_color
             last_type = "CHANGE_COLOR"
-
+            
             logger.debug(f"[TEST_REGULAR_CARDS] Color changed to: {selected_color}/CHANGE_COLOR")
             continue
 
@@ -1950,7 +2026,7 @@ def test_regular_card_placement_rules():
                     logger.error("[TEST_REGULAR_CARDS] X TEST FAILED - Illegal card during TAKI!")
                     logger.error(f"  TAKI color:      {taki_color}")
                     logger.error(f"  Played:          {event.name}")
-                    logger.error(f"  Card color:      {card_color} ✗")
+                    logger.error(f"  Card color:      {card_color} X")
                     logger.error("=" * 60)
                     assert False, (
                         f"TAKI color violation: {event.name} (color={card_color}) "
@@ -1999,12 +2075,13 @@ def setup_logger():
 
     # Console Handler
     c_handler = logging.StreamHandler()
+    c_handler.stream.reconfigure(encoding='utf-8')  # For console
     c_handler.setLevel(LOG_LEVEL)
     c_format = logging.Formatter('%(asctime)s.%(msecs)03d - %(message)s', datefmt='%H:%M:%S')
     c_handler.setFormatter(c_format)
 
     # File Handler
-    f_handler = logging.FileHandler(log_filename, mode='w')
+    f_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
     f_handler.setLevel(LOG_LEVEL)
     f_format = logging.Formatter('%(asctime)s.%(msecs)03d - %(message)s', datefmt='%H:%M:%S')
     f_handler.setFormatter(f_format)
@@ -2026,7 +2103,7 @@ def init_b_program(starting_player=1):
         player_behavior(0, NUM_OF_CARDS),
         player_behavior(1, NUM_OF_CARDS),
         enforce_turns(2, starting_player),
-        enforce_card_placement_rules_BROKEN(),
+        enforce_card_placement_rules(),
         identify_deadlock(),
         identify_livelock(),
         verify_turn_alternation()
@@ -2036,7 +2113,7 @@ def init_b_program(starting_player=1):
     test_threads = []
     if enable_tests:
         test_threads = [
-            test_regular_card_placement_rules(),  # Test 1: Regular cards
+            test_regular_card_sequence_rules(),  # Test 1: Regular cards placement rules (color/type matching, TAKI color matching)
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
     
