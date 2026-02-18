@@ -33,15 +33,11 @@ logger.info(f"Random seed for card dealing: {SEED}")
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # A bypass for EventSetUnify
-pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki))|end_game"
-general_player_event_set = bp.EventSet(lambda e:
-                                       hasattr(e, 'name') and re.match(pattern, e.name) is not None
-                                       )
+pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
+general_player_event_set = bp.EventSet(
+    lambda e: hasattr(e, "name") and re.match(pattern, e.name) is not None
+)
 
-regular_cards_pattern = r"(p_\d+_(card_\d+_\w+))"
-regular_cards_event_set = bp.EventSet(lambda e:
-                                       hasattr(e, 'name') and re.match(regular_cards_pattern, e.name) is not None
-                                       )
 
 def all_player_events():
     def match_event_name(e):
@@ -768,12 +764,12 @@ def select_color_for_change_color_card(index, card_events):
 
 # A regular card is a card with a number (1-9) and a color (red, blue, green).
 # a possible input event to this method is p_1_card_4_blue
-def is_regular_card_event(event: BPEvent) -> bool:
-    card_event_pattern = r"p_\d+_card_\d+_\w+"
-    if re.match(card_event_pattern, event.name) is not None:
-        return True
-    return False
+REGULAR_PLAYED_RE = r"^p_\d+_card_\d+_\w+$"
 
+def is_regular_card_event(event: BPEvent) -> bool:
+    return hasattr(event, "name") and re.match(REGULAR_PLAYED_RE, event.name) is not None
+
+played_regular_cards_event_set = bp.EventSet(is_regular_card_event)
 
 def is_draw_card_event(event: BPEvent) -> bool:
     draw_card_pattern = r"p_\d+_draw_card"
@@ -1785,54 +1781,65 @@ def test_card_placement_rules():
             assert card_1_color == card_2_color or card_1_type == card_2_type, f"Illegal card placement: {card_event_1.name} followed by {card_event_2.name}"
             card_event_1 = card_event_2
 '''
-                 
+
+
 @bp.thread
-def test_regular_card_sequence_rules():
+def test_consecutive_regular_cards_matching():
     """
-    Validates that consecutive regular numbered cards follow placement rules.
-    
-    Rule: Each regular card must match either the COLOR or TYPE of the previous card.
-    
-    Scope: ONLY regular numbered cards (card_1..card_9)
-    Ignores: All special cards (STOP, TAKI, CHANGE_COLOR, etc.)
-    
-    This is a simple sanity check - does not validate special card interactions.
+    Validates that consecutive regular numbered cards follow color-or-type matching.
+
+    Scope: ONLY regular card → regular card transitions
+    Resets: On any non-regular player event
     """
-    logger.info("[test_regular_card_sequence] Test starting...")
     
-    # Initialize from the leading card
+    logger.info("[test_consecutive_regular_cards] Test starting...")
+
     yield bp.sync(waitFor=BPEvent("deal_leading_card"))
-    previous_card = yield bp.sync(waitFor=leading_card_event_set)
-    prev_color, prev_type = extract_card_color_and_type(previous_card)
-    
-    logger.debug(f"[test_regular_card_sequence] Leading card: {prev_color}/{prev_type}")
-    
+    leading_card = yield bp.sync(waitFor=leading_card_event_set)
+    prev_color, prev_type = extract_card_color_and_type(leading_card)
+
+    logger.debug(f"[test_consecutive_regular_cards] Leading: {prev_color}/{prev_type}")
     yield bp.sync(waitFor=BPEvent("start_game"))
-    
+
     while True:
-        current_card = yield bp.sync(waitFor=regular_cards_event_set)
-        curr_color, curr_type = extract_card_color_and_type(current_card)
-        
-        # Validate placement rule
-        color_matches = (curr_color == prev_color)
-        type_matches = (curr_type == prev_type)
-        
-        if not (color_matches or type_matches):
+        event = yield bp.sync(waitFor=general_player_event_set)
+
+        # Skip protocol events
+        if event.name in ["next_turn", "done_post_action"] or "draw_card" in event.name:
+            continue
+
+        # End game
+        if event.name == "end_game":
+            logger.info("[test_consecutive_regular_cards] V Test PASSED")
+            break
+
+        # Reset on any non-regular played event
+        if not is_regular_card_event(event):
+            logger.debug(f"[test_consecutive_regular_cards] Non-regular {event.name}, resetting...")
+
+            reset_event = yield bp.sync(
+                waitFor=bp.EventSetList([played_regular_cards_event_set, BPEvent("end_game")])
+            )
+            
+            if reset_event.name == "end_game":
+                logger.info("[test_consecutive_regular_cards] V Test PASSED")
+                break
+
+            prev_color, prev_type = extract_card_color_and_type(reset_event)
+            logger.debug(f"[test_consecutive_regular_cards] Reset to: {prev_color}/{prev_type}")
+            continue
+
+        # Validate regular -> regular
+        curr_color, curr_type = extract_card_color_and_type(event)
+        if not (curr_color == prev_color or curr_type == prev_type):
             logger.error("=" * 60)
-            logger.error("[test_regular_card_sequence] X TEST FAILED")
+            logger.error("[test_consecutive_regular_cards] X TEST FAILED")
             logger.error(f"  Previous: {prev_color}/{prev_type}")
-            logger.error(f"  Current:  {curr_color}/{curr_type}")
-            logger.error(f"  Color match: {color_matches}, Type match: {type_matches}")
+            logger.error(f"  Current:  {curr_color}/{curr_type} ({event.name})")
             logger.error("=" * 60)
-            assert False, f"Illegal placement: {previous_card.name} -> {current_card.name}"
-        
-        logger.debug(
-            f"[test_regular_card_sequence] ✓ Valid: {current_card.name} "
-            f"(matched {'color' if color_matches else 'type'})"
-        )
-        
-        # Update for next iteration
-        previous_card = current_card
+            assert False, "Consecutive regular cards don't match"
+
+        logger.debug(f"[test_consecutive_regular_cards] V Valid: {event.name}")
         prev_color, prev_type = curr_color, curr_type
 
 
@@ -2113,7 +2120,7 @@ def init_b_program(starting_player=1):
     test_threads = []
     if enable_tests:
         test_threads = [
-            test_regular_card_sequence_rules(),  # Test 1: Regular cards placement rules (color/type matching, TAKI color matching)
+            test_consecutive_regular_cards_matching(),  # Test 1: Regular cards placement rules (color/type matching, TAKI color matching)
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
     
