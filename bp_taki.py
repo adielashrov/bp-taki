@@ -32,7 +32,7 @@ logger.info(f"Random seed for card dealing: {SEED}")
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
-# A bypass for EventSetUnify
+# TODO: document this important event set
 pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
 general_player_event_set = bp.EventSet(
     lambda e: hasattr(e, "name") and re.match(pattern, e.name) is not None
@@ -1789,6 +1789,25 @@ def test_consecutive_regular_cards_matching():
 
 
 @bp.thread
+def test_first_card_matches_leading_card():
+    yield bp.sync(waitFor=BPEvent("deal_leading_card"))
+    leading_event = yield bp.sync(waitFor=leading_card_event_set)
+    leading_color, leading_type = extract_card_color_and_type(leading_event)
+    yield bp.sync(waitFor=BPEvent("start_game"))
+
+    first_event = yield bp.sync(waitFor=general_player_event_set)
+    
+    if not is_regular_card_event(first_event):
+        logger.info(f"[test_first_card_matches_leading_card] First card is action card {first_event.name}, skipping")
+        return
+
+    first_color, first_type = extract_card_color_and_type(first_event)
+    assert first_color == leading_color or first_type == leading_type, \
+        f"First card {first_event.name} doesn't match leading card {leading_event.name}"
+    logger.info(f"[test_first_card_matches_leading_card] V PASSED: {first_event.name} matches leading {leading_event.name}")
+
+
+@bp.thread
 def test_card_placement_rules_extended():
     """
     Validates that consecutive regular numbered cards follow color-or-type matching.
@@ -2126,6 +2145,7 @@ def init_b_program(starting_player=1):
     if enable_tests:
         test_threads = [
             test_consecutive_regular_cards_matching(),
+            test_first_card_matches_leading_card(),
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
     
