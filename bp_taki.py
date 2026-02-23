@@ -108,6 +108,9 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         elif "closed_taki" in e.name:  # Fifth edge case - allow closing TAKI sequences
             allowed = True
             reason = "closed_taki always allowed"
+        elif card_type == "TAKI" and re.match(r"^p_\d+_taki_\w+$", e.name) is not None:
+            allowed = True
+            reason = "TAKI-on-TAKI allowed by type (any color)"
         elif (card_type == "STOP" and "stop_" in e.name) or card_color in e.name:
             # Any STOP (any color) matches a leading STOP card by type.
             # But also allow matching by color.
@@ -119,7 +122,7 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
         # If execution reaches this point, the event is about to be blocked.
         # We check if it is a "taki" card to verify if we are accidentally blocking a valid Taki-on-Taki move.
-        if (not allowed) and ("taki" in e.name) and (card_type == "TAKI"):
+        if (not allowed) and (card_type == "TAKI") and re.match(r"^p_\d+_taki_\w+$", e.name):
             logger.debug(f"[RULES] Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
 
 
@@ -1632,6 +1635,11 @@ def enforce_card_placement_rules():
                     logger.debug(f"[ENFORCE_RULES] Last card color: {last_taki_card_color}, type: {last_taki_card_type}")
                     logger.debug(f"{'=' * 60}")
                     break
+                
+                # _closed_taki may appear before done_post_action; ignore it so it doesn't trigger warnings.
+                if taki_event.name.endswith("_closed_taki"):
+                    logger.debug("[ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.")
+                    continue
 
                 # Update tracking with each card played during TAKI
                 if is_super_taki_event(taki_event):
@@ -1765,26 +1773,23 @@ def verify_turn_alternation():
         # else: same active_player_id again within the same turn → OK (multi-action turn)
 
 
-'''
-@bp.thread
-def test_card_placement_rules():
 
-    logger.info("[test_card_placement_rules] Test starting...")
-    
-    # wait for the leading card and initialize accordingly
-    card_event_1 = yield bp.sync(waitFor=regular_cards_event_set)
+@bp.thread
+def test_consecutive_regular_cards_matching():
+    card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
     while True:
-        card_event_2 = yield bp.sync(waitFor=bp.EventSetList([regular_cards_event_set, BPEvent("change_color")]))
-        if card_event_2.name != "change_color":
+        card_event_2 = yield bp.sync(waitFor=bp.EventSetList([played_regular_cards_event_set, BPEvent("p_0_change_color"), BPEvent("p_1_change_color")]))
+        if "change_color" not in card_event_2.name:
             card_1_color, card_1_type = extract_card_color_and_type(card_event_1)
             card_2_color, card_2_type = extract_card_color_and_type(card_event_2)
             assert card_1_color == card_2_color or card_1_type == card_2_type, f"Illegal card placement: {card_event_1.name} followed by {card_event_2.name}"
             card_event_1 = card_event_2
-'''
+        else: # reset on change_color event
+            card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
 
 
 @bp.thread
-def test_consecutive_regular_cards_matching():
+def test_card_placement_rules_extended():
     """
     Validates that consecutive regular numbered cards follow color-or-type matching.
 
@@ -2120,7 +2125,7 @@ def init_b_program(starting_player=1):
     test_threads = []
     if enable_tests:
         test_threads = [
-            test_consecutive_regular_cards_matching(),  # Test 1: Regular cards placement rules (color/type matching, TAKI color matching)
+            test_consecutive_regular_cards_matching(),
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
     
