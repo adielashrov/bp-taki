@@ -1796,15 +1796,15 @@ def test_first_card_matches_leading_card():
     yield bp.sync(waitFor=BPEvent("start_game"))
 
     first_event = yield bp.sync(waitFor=general_player_event_set)
-    
+    # We only validate the first card if it's a regular card - 
+    # if the first event is a special card (like stop or change_color), 
+    # we don't enforce matching rules on it.
     if not is_regular_card_event(first_event):
-        logger.info(f"[test_first_card_matches_leading_card] First card is action card {first_event.name}, skipping")
         return
 
     first_color, first_type = extract_card_color_and_type(first_event)
     assert first_color == leading_color or first_type == leading_type, \
         f"First card {first_event.name} doesn't match leading card {leading_event.name}"
-    logger.info(f"[test_first_card_matches_leading_card] V PASSED: {first_event.name} matches leading {leading_event.name}")
 
 
 @bp.thread
