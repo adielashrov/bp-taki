@@ -1822,6 +1822,13 @@ def test_no_game_events_after_end():
 
 
 @bp.thread
+def test_no_more_cards_before_end_game():
+    event = yield bp.sync(waitFor=bp.EventSetList([any_player_no_more_cards, BPEvent("end_game")]))
+    assert "no_more_cards" in event.name, \
+        f"[test_no_more_cards_before_end_game] X FAILED: end_game fired without no_more_cards"
+
+
+@bp.thread
 def test_card_placement_rules_extended():
     """
     Validates that consecutive regular numbered cards follow color-or-type matching.
@@ -2162,6 +2169,7 @@ def init_b_program(starting_player=1):
             test_first_card_matches_leading_card(),
             test_no_game_events_before_start(),
             test_no_game_events_after_end(),
+            test_no_more_cards_before_end_game()
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
     
