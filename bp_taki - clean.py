@@ -32,11 +32,12 @@ logger.info(f"Random seed for card dealing: {SEED}")
 
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
-# A bypass for EventSetUnify
-pattern = r"(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki))|end_game"
-general_player_event_set = bp.EventSet(lambda e:
-                                       hasattr(e, 'name') and re.match(pattern, e.name) is not None
-                                       )
+# TODO: document this important event set
+pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
+general_player_event_set = bp.EventSet(
+    lambda e: hasattr(e, "name") and re.match(pattern, e.name) is not None
+)
+
 
 def all_player_events():
     def match_event_name(e):
@@ -107,6 +108,9 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
         elif "closed_taki" in e.name:  # Fifth edge case - allow closing TAKI sequences
             allowed = True
             reason = "closed_taki always allowed"
+        elif card_type == "TAKI" and re.match(r"^p_\d+_taki_\w+$", e.name) is not None:
+            allowed = True
+            reason = "TAKI-on-TAKI allowed by type (any color)"
         elif (card_type == "STOP" and "stop_" in e.name) or card_color in e.name:
             # Any STOP (any color) matches a leading STOP card by type.
             # But also allow matching by color.
@@ -118,13 +122,13 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
         # If execution reaches this point, the event is about to be blocked.
         # We check if it is a "taki" card to verify if we are accidentally blocking a valid Taki-on-Taki move.
-        if (not allowed) and ("taki" in e.name) and (card_type == "TAKI"):
+        if (not allowed) and (card_type == "TAKI") and re.match(r"^p_\d+_taki_\w+$", e.name):
             logger.debug(f"[RULES] Blocking TAKI play: {e.name} on top of {card_type}/{card_color}")
 
 
         # 🔍 DEBUG: logger.debug only when checking TAKI cards (reduce noise)
         # if "taki" in e.name.lower() or allowed:
-            # symbol = "✓" if allowed else "✗"
+            # symbol = "v" if allowed else "x"
             # logger.debug(f"[PLACEMENT_CHECK] {symbol} {e.name:30} | Reason: {reason if allowed else 'no match'}")
 
         return allowed
@@ -369,8 +373,8 @@ def create_block_set_color_only(color: str):
         Notes
         -----
         The regex patterns are:
-        - r"^p_\d+_(card_\d+|stop|plus_2)_(red|green|blue)$" for colored cards
-        - r"^p_\d+_super_taki$" for super_taki (no color suffix)
+        - "^p_\\d+_(card_\\d+|stop|plus_2)_(red|green|blue)$" for colored cards
+        - "^p_\\d+_super_taki$" for super_taki (no color suffix)
         """
         # Match colored cards OR super_taki (which has no color suffix)
         return (
@@ -549,7 +553,7 @@ def is_any_taki_event(e):
     result = is_taki_card_event(e) or is_super_taki_event(e)
     # if result:
     #    taki_type = "Regular TAKI" if is_taki_card_event(e) else "Super TAKI"
-    #    logger.debug(f"[DEBUG is_any_taki_event] ✓ {taki_type} detected: {e.name}")
+    #    logger.debug(f"[DEBUG is_any_taki_event] v {taki_type} detected: {e.name}")
     return result
 
 def is_plus_2_card_event(e: BPEvent) -> bool:
@@ -763,12 +767,12 @@ def select_color_for_change_color_card(index, card_events):
 
 # A regular card is a card with a number (1-9) and a color (red, blue, green).
 # a possible input event to this method is p_1_card_4_blue
-def is_regular_card_event(event: BPEvent) -> bool:
-    card_event_pattern = r"p_\d+_card_\d+_\w+"
-    if re.match(card_event_pattern, event.name) is not None:
-        return True
-    return False
+REGULAR_PLAYED_RE = r"^p_\d+_card_\d+_\w+$"
 
+def is_regular_card_event(event: BPEvent) -> bool:
+    return hasattr(event, "name") and re.match(REGULAR_PLAYED_RE, event.name) is not None
+
+played_regular_cards_event_set = bp.EventSet(is_regular_card_event)
 
 def is_draw_card_event(event: BPEvent) -> bool:
     draw_card_pattern = r"p_\d+_draw_card"
@@ -1196,6 +1200,11 @@ def enforce_card_placement_rules():
                     logger.debug(f"[ENFORCE_RULES] Last card color: {last_taki_card_color}, type: {last_taki_card_type}")
                     logger.debug(f"{'=' * 60}")
                     break
+                
+                # _closed_taki may appear before done_post_action; ignore it so it doesn't trigger warnings.
+                if taki_event.name.endswith("_closed_taki"):
+                    logger.debug("[ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.")
+                    continue
 
                 # Update tracking with each card played during TAKI
                 if is_super_taki_event(taki_event):
@@ -1329,16 +1338,72 @@ def verify_turn_alternation():
         # else: same active_player_id again within the same turn → OK (multi-action turn)
 
 
+
+@bp.thread
+def test_consecutive_regular_cards_matching():
+    card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
+    while True:
+        card_event_2 = yield bp.sync(waitFor=bp.EventSetList([played_regular_cards_event_set, BPEvent("p_0_change_color"), BPEvent("p_1_change_color")]))
+        if "change_color" not in card_event_2.name:
+            card_1_color, card_1_type = extract_card_color_and_type(card_event_1)
+            card_2_color, card_2_type = extract_card_color_and_type(card_event_2)
+            assert card_1_color == card_2_color or card_1_type == card_2_type, f"Illegal card placement: {card_event_1.name} followed by {card_event_2.name}"
+            card_event_1 = card_event_2
+        else: # reset on change_color event
+            card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
+
+
+@bp.thread
+def test_first_card_matches_leading_card():
+    yield bp.sync(waitFor=BPEvent("deal_leading_card"))
+    leading_event = yield bp.sync(waitFor=leading_card_event_set)
+    leading_color, leading_type = extract_card_color_and_type(leading_event)
+    yield bp.sync(waitFor=BPEvent("start_game"))
+
+    first_event = yield bp.sync(waitFor=general_player_event_set)
+    # We only validate the first card if it's a regular card - 
+    # if the first event is a special card (like stop or change_color), 
+    # we don't enforce matching rules on it.
+    if not is_regular_card_event(first_event):
+        return
+
+    first_color, first_type = extract_card_color_and_type(first_event)
+    assert first_color == leading_color or first_type == leading_type, \
+        f"First card {first_event.name} doesn't match leading card {leading_event.name}"
+
+
+@bp.thread
+def test_no_game_events_before_start():
+    event = yield bp.sync(waitFor=bp.EventSetList([general_player_event_set, BPEvent("start_game")]))
+    assert event.name == "start_game", \
+        f"[test_no_game_events_before_start] X FAILED: game event fired before start_game: {event.name}"
+
+
+@bp.thread
+def test_no_game_events_after_end():
+    yield bp.sync(waitFor=BPEvent("end_game"))
+    event = yield bp.sync(waitFor=general_player_event_set)
+    assert False, f"[test_no_game_events_after_end] X FAILED: game event fired after end_game: {event.name}"
+
+
+@bp.thread
+def test_no_more_cards_before_end_game():
+    event = yield bp.sync(waitFor=bp.EventSetList([any_player_no_more_cards, BPEvent("end_game")]))
+    assert "no_more_cards" in event.name, \
+        f"[test_no_more_cards_before_end_game] X FAILED: end_game fired without no_more_cards"
+
+
 def setup_logger():
 
     # Console Handler
     c_handler = logging.StreamHandler()
+    c_handler.stream.reconfigure(encoding='utf-8')  # For console
     c_handler.setLevel(LOG_LEVEL)
     c_format = logging.Formatter('%(asctime)s.%(msecs)03d - %(message)s', datefmt='%H:%M:%S')
     c_handler.setFormatter(c_format)
 
     # File Handler
-    f_handler = logging.FileHandler(log_filename, mode='w')
+    f_handler = logging.FileHandler(log_filename, mode='w', encoding='utf-8')
     f_handler.setLevel(LOG_LEVEL)
     f_format = logging.Formatter('%(asctime)s.%(msecs)03d - %(message)s', datefmt='%H:%M:%S')
     f_handler.setFormatter(f_format)
@@ -1350,18 +1415,40 @@ def setup_logger():
 
 
 def init_b_program(starting_player=1):
-    b_program = bp.BProgram(bthreads=[game_manager(),
-                                      deal_cards(2, NUM_OF_CARDS, starting_player),
-                                      player_behavior(0, NUM_OF_CARDS),
-                                      player_behavior(1, NUM_OF_CARDS),
-                                      enforce_turns(2, starting_player),
-                                      enforce_card_placement_rules(),
-                                      identify_deadlock(),
-                                      identify_livelock(),
-                                      verify_turn_alternation()],
-                                     # detect_illegal_post_game_moves()],
-                            event_selection_strategy=EventPrioritySelectionStrategy(),
-                            listener=LogBProgramRunnerListener(logger=logger))
+    
+    enable_tests = True
+   
+    # Core game threads
+    game_threads = [
+        game_manager(),
+        deal_cards(2, NUM_OF_CARDS, starting_player),
+        player_behavior(0, NUM_OF_CARDS),
+        player_behavior(1, NUM_OF_CARDS),
+        enforce_turns(2, starting_player),
+        enforce_card_placement_rules(),
+        identify_deadlock(),
+        identify_livelock(),
+        verify_turn_alternation()
+    ]
+    
+    # Regression test threads
+    test_threads = []
+    if enable_tests:
+        test_threads = [
+            test_consecutive_regular_cards_matching(),
+            test_first_card_matches_leading_card(),
+            test_no_game_events_before_start(),
+            test_no_game_events_after_end(),
+            test_no_more_cards_before_end_game()
+        ]
+        logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
+    
+    b_program = bp.BProgram(
+        bthreads=game_threads + test_threads,
+        event_selection_strategy=EventPrioritySelectionStrategy(),
+        listener=LogBProgramRunnerListener(logger=logger)
+    )
+
     return b_program
 
 def build_b_program(
