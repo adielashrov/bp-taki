@@ -1,13 +1,10 @@
-from typing import Union, Optional
-
+from typing import Union
 import bppy as bp
-from bppy.model.event_selection.statement_priority_event_selection_strategy import StatementPriorityBasedEventSelectionStrategy
 from bppy.model.b_priority_event import BPEvent
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
 from bppy.analysis.dfs_bprogram_verifier import DFSBProgramVerifier
 import random
 import re
-from typing import *
 import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
@@ -33,7 +30,7 @@ logger.info(f"Random seed for card dealing: {SEED}")
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # TODO: document this important event set
-pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|last_card|stop_\w+|plus_2_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
+pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|stop_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
 general_player_event_set = bp.EventSet(
     lambda e: hasattr(e, "name") and re.match(pattern, e.name) is not None
 )
@@ -46,29 +43,10 @@ def all_player_events():
         return False
     return bp.EventSet(match_event_name)
 
-def all_player_index_events(index):
-    return bp.EventSet(lambda e: f'p_{index}' in e.name)
 
 all_player_0_events = bp.EventSet(lambda e: 'p_0' in e.name)
 all_player_1_events = bp.EventSet(lambda e: 'p_1' in e.name)
 
-def all_player_post_action_events(index):
-    return bp.EventSet(lambda e: f'post_action_p_{index}' in e.name)
-
-all_player_0_post_action_events = bp.EventSet(lambda e: 'post_action_p_0' in e.name)
-all_player_1_post_action_events = bp.EventSet(lambda e: 'post_action_p_1' in e.name)
-
-#Maybe we should support union of EventSets, like this case.
-all_player_0_except_no_more_cards = bp.EventSet(lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name)
-all_player_1_except_no_more_cards = bp.EventSet(lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name)
-
-def all_players_cards_except_special_cards(index):
-    def predicate(e: BPEvent):
-        if f'p_{index}' in e.name and not 'no_more_cards' in e.name:
-            return True
-        return False
-
-    return bp.EventSet(predicate)
 
 def all_other_player_cards_besides_special_cards(index):
     def predicate(e: BPEvent):
@@ -78,9 +56,6 @@ def all_other_player_cards_besides_special_cards(index):
         return False
 
     return bp.EventSet(predicate)
-
-def player_stop_card_event_set(index):
-    return bp.EventSet(lambda e: e.name.startswith(f"p_{index}_stop"))
 
 
 def init_selected_color_or_type_event_set(card_color: str, card_type: str):
@@ -135,38 +110,6 @@ def init_selected_color_or_type_event_set(card_color: str, card_type: str):
 
     return bp.EventSet(predicate)
 
-def all_events_not_by_current_player(index: int):
-    '''
-    Return an EventSet that matches all events except those emitted by the given player.
-
-    Parameters
-    ----------
-    index : int
-        Player index used to identify player-specific event names (for example `p_0`).
-
-    Returns
-    -------
-    bp.AllExcept
-        An EventSet that is the complement of `bp.EventSet(lambda e: f'p_{index}' in e.name)`.
-        Events whose `name` contains the substring `p_{index}` will be excluded.
-    '''''
-    def is_event_of_current_player(event):
-        try:
-            result = f"p_{index}" in getattr(event, "name", "") or f"deal_p" in getattr(event, "name", "")
-            if not result:
-                result = True if event.name == "next_turn" or event.name == "stop" else False
-        except Exception as e:
-            logger.info(f"[DEBUG is_event_of_current_player] index={index} error reading event.name: {event}")
-            raise
-        return result
-
-
-    return bp.AllExcept(bp.EventSet(is_event_of_current_player))
-
-all_player_0_except_no_more_cards_and_last_card = bp.EventSet(
-    lambda e: 'p_0' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
-all_player_1_except_no_more_cards_and_last_card = bp.EventSet(
-    lambda e: 'p_1' in e.name and not 'no_more_cards' in e.name and not 'last_card' in e.name)
 
 any_player_no_more_cards = bp.EventSet(lambda e: 'no_more_cards' in e.name)
 
@@ -181,134 +124,6 @@ def get_player_id(name: str):
     else:
         id = None
     return id
-
-
-
-def all_player_stop_card_events(player_index):
-    def is_event_stop_card_event(event):
-        pattern = fr"p_{player_index}_stop_\w+"
-        if re.match(pattern, event.name) is not None:
-            return True
-        return False
-    return bp.EventSet(is_event_stop_card_event)
-
-
-def create_cards_from_same_color_event_set(color):
-    def cards_from_the_same_color(event):
-        if color in event.name:
-            return True
-        return False
-
-    return bp.EventSet(cards_from_the_same_color)
-
-
-def create_cards_from_different_color_event_set(color):
-    def cards_from_the_different_color(event):
-        colors = COLORS
-        if color in colors:
-            colors.remove(color)
-        else:
-            raise Exception(f"Wrong parameter to cards_from_the_different_color: {color}")
-        if color in event.name:
-            return False
-        for c in colors:
-            if c in event.name:
-                return True
-        return False
-
-    return bp.EventSet(cards_from_the_different_color)
-
-
-def create_cards_from_different_number_event_set(number):
-    numbers = ["1", "3", "4", "5", "6", "7", "8", "9"]
-    numbers.remove(number)
-
-    def cards_from_the_different_number(event):
-        current_card_number = extract_card_number(event)
-        if number == current_card_number:
-            return False
-        elif current_card_number in numbers:
-            return True
-        else:
-            return False
-
-    return bp.EventSet(cards_from_the_different_number)
-
-
-def create_cards_from_different_color_or_type_event_set(card_color, card_type):
-    """
-    Creates an EventSet that identifies cards matching NEITHER the given color NOR type.
-
-    Enforces Taki's rule: players must match either color or type of the leading card.
-    Returns an EventSet that blocks illegal moves (cards that match neither).
-
-    Parameters
-    ----------
-    card_color : str
-        The reference color: "blue", "red", or "green"
-    card_type : str
-        The reference type: "1", "3", "4", "5", "6", "7", "8", "9", "STOP", "PLUS_2"
-
-    Returns
-    -------
-    bp.EventSet
-        EventSet returning True for cards matching neither color nor type (illegal moves)
-
-    Raises
-    ------
-    Exception
-        If card_color or card_type are invalid
-
-    Examples
-    --------
-    If the leading card is blue 5:
-    blocked_set = create_cards_from_different_color_or_type_event_set("blue", "5")
-    # Returns False (don't block): blue 3 (matches color)
-    # Returns False (don't block): red 5 (matches type)
-    # Returns False (don't block): blue 5 (matches both)
-    # Returns True (block): red 3 (matches neither color nor type - illegal play)
-    # Returns True (block): green 7 (matches neither color nor type - illegal play)
-    """
-    colors = COLORS
-    types = ["1", "3", "4", "5", "6", "7", "8", "9", "STOP", "PLUS_2"]
-    if card_color in colors and card_type in types:
-        colors.remove(card_color)
-        types.remove(card_type)
-    elif card_type.startswith("CHANGE_COLOR") : # Special case for change_color card
-        return bp.EventSet(lambda e: False)  # Don't block anything for change_color
-    else:
-        raise Exception(f"Wrong parameter to "
-                        f"create_cards_from_different_color_or_type_event_set"
-                        f"{card_color, card_type}")
-
-    def cards_from_the_different_color_or_type(event):
-        """
-        Returns True for cards that match neither color nor type (should be blocked).
-
-        Logic:
-        - Never block "deal_p_" events (card dealing)
-        - Don't block if color OR type matches (legal plays)
-        - Block card events that match neither (illegal plays)
-        - Don't block non-card events (return False by default)
-
-        The OR condition identifies card events: after removing the reference color/type,
-        `colors` and `types` contain all OTHER color/type values, so checking membership
-        confirms this is an illegal play.
-        """
-
-        # Edge case, we don't want to block events from different
-        # colors/number if they are a new card being dealt.
-        if event.name.startswith("deal_p_"):
-            return False
-        t_card_color, t_card_type = extract_card_color_and_type(event)
-        if t_card_color == card_color or t_card_type == card_type:
-            return False
-        elif t_card_color in colors or t_card_type in types: #Should we block "STOP" events?
-            return True
-        else:  # default return false.
-            return False
-
-    return bp.EventSet(cards_from_the_different_color_or_type)
 
 
 def create_block_set_color_only(color: str):
@@ -477,30 +292,6 @@ def create_taki_color_block(color: str) -> bp.EventSet:
     return bp.EventSet(to_block)
 
 
-class PlayerEventSet(bp.EventSet):
-    def __init__(self, index):
-        self.index = index
-        super().__init__(lambda event: event.name.startswith(f"p_{self.index}"))
-
-    def __contains__(self, item):
-        if isinstance(item, BPEvent):
-            return item.name.startswith(f"p_{self.index}")
-        else:
-            raise TypeError(f"Player_{self.index}_EventSet: Expected item of type BPEvent, got {type(item)}")
-
-
-class DealCardsPlayerEventSet(bp.EventSet):
-    def __init__(self, index):
-        self.index = index
-        super().__init__(lambda event: event.name.startswith(f"deal_p_{self.index}"))
-
-    def __contains__(self, item):
-        if isinstance(item, BPEvent):
-            return item.name.startswith(f"deal_p_{self.index}")
-        else:
-            raise TypeError(
-                f"Player_{self.index}_DealCardsPlayerEventSet: Expected item of type BPEvent, got {type(item)}")
-
 class DealCardsEventSet(bp.EventSet):
     def __init__(self):
         super().__init__(lambda event: event.name.startswith(f"deal_p_"))
@@ -551,36 +342,12 @@ def is_taki_card_event(event: BPEvent) -> bool:
 def is_any_taki_event(e):
     """Check if event is any type of TAKI card (regular or super)"""
     result = is_taki_card_event(e) or is_super_taki_event(e)
-    # if result:
-    #    taki_type = "Regular TAKI" if is_taki_card_event(e) else "Super TAKI"
-    #    logger.debug(f"[DEBUG is_any_taki_event] v {taki_type} detected: {e.name}")
     return result
 
-def is_plus_2_card_event(e: BPEvent) -> bool:
-    return isinstance(e, BPEvent) and re.match(r"^p_\d+_plus_2_\w+$", e.name) is not None
-
-def extract_plus_2_color(event: BPEvent) -> Optional[str]:
-    """Extract color from Plus 2 card event"""
-    if "plus_2" in event.name:
-        return event.name.split("_")[-1]  # returns "red", "blue", or "green"
-    return None
 
 def is_change_color_event(event: BPEvent) -> bool:
     """Check if event is a change color card"""
     return "change_color" in event.name
-
-
-def is_change_color_play(e) -> bool:
-    # PLAY only: p_<i>_change_color
-    return isinstance(e, BPEvent) and re.match(r"^p_\d+_change_color$", e.name) is not None
-
-def is_announce_color_play(e) -> bool:
-    # PLAY only: p_<i>_announce_color_(red|green|blue|ד)
-    return isinstance(e, BPEvent) and re.match(r"^p_\d+_announce_color_(red|green|blue)$", e.name) is not None
-
-def player_idx_of(event_name: str) -> int:
-    m = re.match(r"^p_(\d+)_", event_name)
-    return int(m.group(1)) if m else -1
 
 
 @bp.thread
@@ -594,12 +361,6 @@ def game_manager():
     # End the game, the only event allowed is end_game
     yield bp.sync(request=BPEvent("end_game", priority=7.0),
                            block=bp.AllExcept(BPEvent("end_game", priority=7.0)))
-    yield bp.sync(block=bp.All())
-
-
-@bp.thread
-def end_of_game():  # blocks moves after the game is over
-    yield bp.sync(waitFor=BPEvent("end_game", priority=7.0))
     yield bp.sync(block=bp.All())
 
 
@@ -688,10 +449,6 @@ def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
         deal_cards_events.remove(last_event)
 
 
-def remove_deal_prefix_from_event(event):
-    card_name = event.name.removeprefix("deal_")
-    return card_name
-
 def remove_deal_prefix_and_add_player_index(event, player_index):
     card_name = event.name.removeprefix("deal_p_")
     card_name = f"p_{player_index}_" + card_name
@@ -717,52 +474,6 @@ def list_does_not_contain_card_events(events: list[BPEvent]) -> bool:
 
     # We saw only draw/closed_taki
     return True
-
-
-def count_num_of_cards(index: int, action_events: list[BPEvent]) -> int:
-    card_count = len([e for e in action_events if e.name.startswith(f"p_{index}_card")])
-    return card_count
-
-# Check if the following method could be removed in the future if not needed.
-def select_color_for_change_color_card(index, card_events):
-    """
-    Selects a color after playing a change_color card.
-    Prefers colors that the player has in their hand (chooses the most frequent).
-    If tied, prefers in order: red, blue, green.
-    If no colored cards remain, defaults to red.
-
-    Parameters
-    ----------
-    index : int
-        The player index
-    card_events : list[BPEvent]
-        The current cards in the player's hand
-
-    Returns
-    -------
-    str
-        The selected color: "red", "blue", or "green"
-    """
-    # Count available colors from remaining cards
-    color_counts = {"red": 0, "blue": 0, "green": 0}
-    available_colors = []
-
-    for card in card_events:
-        if card.name != f"p_{index}_draw_card":
-            color, _ = extract_card_color_and_type(card)
-            if color in color_counts:
-                color_counts[color] += 1
-
-    # Select color with the highest count, with deterministic tiebreaking (red > blue > green)
-    max_count = max(color_counts.values())
-
-    if max_count == 0:
-        return "red"  # No colored cards, default to red
-
-    # Return first color (in priority order) with max count
-    for color in COLORS:
-        if color_counts[color] == max_count:
-            return color
 
 
 # A regular card is a card with a number (1-9) and a color (red, blue, green).
@@ -792,30 +503,10 @@ def is_stop_card_event(event: BPEvent) -> bool:
             return True
     return False
 
-def extract_player_id(event: BPEvent) -> Optional[int]:
-    """Extract player ID from event name (e.g., p_0_card -> 0)"""
-    player_reg_exp = re.compile(r"^p_(\d+)_")
-    m = player_reg_exp.match(event.name)
-    if m:
-        return int(m.group(1))
-    else:
-        return None
-
 
 def is_super_taki_event(e):
     ans = isinstance(e, BPEvent) and re.match(r"^p_\d+_super_taki$", e.name) is not None
     return ans
-
-def is_closed_taki_event(e):
-    """Check if event is a closed_taki event signaling the end of a super taki sequence"""
-    return isinstance(e, BPEvent) and re.match(r"^p_\d+_closed_taki$", e.name) is not None
-
-
-def add_dummy_events(index, card_events, color):
-    numbers = ["1", "3", "4", "5"]
-    for number in numbers:
-        logger.debug(f"[add_dummy_events]: card_{number}_{color} for player: {index}")
-        card_events.append(BPEvent(name=f"p_{index}_card_{number}_{color}", priority=10.0))
 
 
 @bp.thread
@@ -900,101 +591,6 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
-def add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, original_priority, card_events):
-    """
-    Add a card event to player's hand with priority adjustment for TAKI cards.
-
-    TAKI cards receive priority 5.0 (lower number = higher priority) to encourage playing them,
-    while other cards keep their original priority (typically 10.0).
-    """
-    if "taki" in card_name:
-        adjusted_priority = 5.0
-        logger.debug(
-            f"[STRATEGY_TAKI] Player {index}: Adding TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
-        card_events.append(BPEvent(card_name, priority=adjusted_priority))
-    else:
-        logger.debug(
-            f"[STRATEGY_TAKI] Player {index}: Adding regular card '{card_name}' with standard priority {original_priority}")
-        card_events.append(BPEvent(card_name, priority=original_priority))
-
-    # Summary log of current hand composition
-    taki_count = sum(1 for e in card_events if "taki" in e.name)
-    logger.debug(
-        f"[STRATEGY_TAKI] Player {index}: Hand now contains {len(card_events)} cards ({taki_count} TAKI cards)")
-
-
-def add_event_to_card_events_according_to_basic_strategy_taki_2(index, card_name, original_priority, card_events):
-    """
-    Add a card event to player's hand with priority adjustment for TAKI cards.
-    If you have both TAKI and Super TAKI cards, prioritize TAKI higher.
-    TAKI will receive a priority of 4.0, Super TAKI 6.0, and
-    other cards keep their original priority.
-    """
-    if "super_taki" in card_name :
-        adjusted_priority = 6.0
-        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding SUPER TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
-        card_events.append(BPEvent(card_name, priority=adjusted_priority))
-    elif "taki_" in card_name:
-        adjusted_priority = 4.0
-        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding TAKI card '{card_name}' with BOOSTED priority {adjusted_priority} (original: {original_priority})")
-        card_events.append(BPEvent(card_name, priority=adjusted_priority))
-    else:
-        # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Adding regular card '{card_name}' with standard priority {original_priority}")
-        card_events.append(BPEvent(card_name, priority=original_priority))
-
-
-def is_no_more_cards_event(event: BPEvent) -> bool:
-    return isinstance(event, BPEvent) and re.match(r"^p_\d+_no_more_cards$", event.name) is not None
-
-
-def add_event_to_card_events_according_to_color_dominance(index, card_name, original_priority, card_events, dominant_color):
-    """
-    Add a card event to player's hand with priority adjustment based on color dominance.
-    
-    Dominant color cards receive priority 5.0 (higher preference), 
-    while off-color cards get priority 12.0 (lower preference).
-    
-    EXCLUDES change_color cards - they are managed exclusively by player_behavior.
-    """
-    # Skip change_color cards - let player_behavior handle them exclusively
-    if "change_color" in card_name:
-        logger.debug(
-            f"[STRATEGY_COLOR_DOM] Player {index}: Skipping change_color card - "
-            f"player_behavior will manage it"
-        )
-        return
-    
-    # Check if card is of the dominant color
-    is_dominant = dominant_color in card_name
-    
-    if is_dominant:
-        adjusted_priority = 5.0
-        logger.debug(
-            f"[STRATEGY_COLOR_DOM] Player {index}: Adding DOMINANT color card '{card_name}' "
-            f"with BOOSTED priority {adjusted_priority} (original: {original_priority})"
-        )
-    else:
-        adjusted_priority = 12.0
-        logger.debug(
-            f"[STRATEGY_COLOR_DOM] Player {index}: Adding off-color card '{card_name}' "
-            f"with LOWERED priority {adjusted_priority} (original: {original_priority})"
-        )
-    
-    card_events.append(BPEvent(card_name, priority=adjusted_priority))
-
-
-def extract_card_color(event: BPEvent) -> str:
-    card_str_index = event.name.find("card")
-    card_color = event.name[card_str_index + 7:]
-    return card_color
-
-
-def extract_card_number(event: BPEvent) -> str:
-    card_str_index = event.name.find("card")
-    card_number = event.name[card_str_index + 5:card_str_index + 6]
-    return card_number
-
-
 def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[None, None]]:
     """
     Extracts the color and number from a card or stop event name.
@@ -1060,13 +656,6 @@ def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[
                         else: # card is unmatched - return None, None
                             # logger.debug(f"[DEBUG extract_card_color_and_type] card was unmatched! {event.name}")
                             return None, None
-
-
-def is_color_card_event(event: BPEvent) -> bool:
-    for color in COLORS:
-        if color in event.name:
-            return True
-    return False
 
 
 @bp.thread
@@ -1278,14 +867,6 @@ def identify_deadlock():
 
 
 @bp.thread
-def detect_illegal_post_game_moves():
-    yield bp.sync(waitFor=BPEvent("end_game", priority=7.0))
-    # Allow one more event and check
-    illegal_event = yield bp.sync(waitFor=bp.All())
-    assert False, f"Illegal event occurred after game ended: {illegal_event}"
-
-
-@bp.thread
 def verify_turn_alternation():
     yield bp.sync(waitFor=BPEvent("start_game"))
 
@@ -1492,3 +1073,4 @@ def verify_with_dfs():
 if __name__ == "__main__":
     regular_execution_of_bp_program()
     # verify_with_dfs()
+    
