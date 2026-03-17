@@ -599,6 +599,91 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
+@bp.thread
+def player_behavior_external(index, num_of_cards=2):
+    """
+    Baseline external-player bridge b-thread.
+
+    This currently mirrors ``player_behavior`` exactly so it can evolve
+    independently into the Python TAKI integration point.
+    """
+    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+    for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    # Add draw_card_event to the cards events(Possible actions of player)
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    card_events.append(draw_card_event)
+
+    while True:
+        card_event = yield bp.sync(request=card_events)
+
+        if is_regular_card_event(card_event):
+            card_events.remove(card_event)
+        # If there is a draw card event, wait for a card to be dealt.
+        elif is_draw_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+        # If this is an action card - wait for done_post_action event.
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                logger.debug(f"{'=' * 60}")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] TAKI SEQUENCE STARTING: {card_event.name}")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] Removing TAKI from hand")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] Adding closed_taki to possible actions")
+                logger.debug(f"{'=' * 60}")
+
+                card_events.remove(card_event)  # Remove TAKI / Super_TAKI from player hand
+
+                # Add closed_taki event to the possible actions of the player, the correct priority here is crucial!
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+
+                cards_played_in_taki = []
+
+                while True:
+                    card_event = yield bp.sync(request=card_events)
+
+                    if card_event.name != f"p_{index}_closed_taki":
+                        cards_played_in_taki.append(card_event.name)
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Card played in TAKI: {card_event.name}")
+
+                    card_events.remove(card_event)
+                    if card_event.name == f"p_{index}_closed_taki":
+                        logger.debug(f"{'=' * 60}")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] TAKI SEQUENCE ENDING")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Cards played: {cards_played_in_taki}")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Total cards in sequence: {len(cards_played_in_taki)}")
+                        logger.debug(f"{'=' * 60}")
+                        break
+
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            elif is_change_color_event(card_event):
+                card_events.remove(card_event)
+                selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                selected_color_event = yield bp.sync(request=selected_color_events)
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            else:
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                card_events.remove(card_event)
+
+        # If the only event left is draw_card, break and end the game.
+        if list_does_not_contain_card_events(card_events):
+            yield bp.sync(request=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
+            break
+        else:  # else announce that you have finished your turn.
+            yield bp.sync(request=BPEvent("next_turn", priority=10.0))
+
+
 def add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, original_priority, card_events):
     """
     Add a card event to player's hand with priority adjustment for TAKI cards.
