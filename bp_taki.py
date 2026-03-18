@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 import bppy as bp
 from bppy.model.b_priority_event import BPEvent
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
@@ -599,6 +599,25 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
+def call_dummy_python_taki_player_api(index: int, candidate_events: list[BPEvent], phase: str) -> Optional[str]:
+    """
+    Placeholder bridge call for the external Python TAKI player.
+
+    For now this only logs the candidate actions and returns a dummy preferred
+    event name. The returned value is not enforced yet; BP remains responsible
+    for selecting the actual event.
+    """
+    candidate_event_names = [event.name for event in candidate_events]
+    preferred_event_name = candidate_event_names[0] if candidate_event_names else None
+
+    logger.info(
+        f"[PLAYER_EXTERNAL_API] player={index} phase={phase} "
+        f"candidates={candidate_event_names} dummy_preferred={preferred_event_name}"
+    )
+
+    return preferred_event_name
+
+
 @bp.thread
 def player_behavior_external(index, num_of_cards=2):
     """
@@ -623,6 +642,7 @@ def player_behavior_external(index, num_of_cards=2):
     card_events.append(draw_card_event)
 
     while True:
+        call_dummy_python_taki_player_api(index, card_events, phase="turn")
         card_event = yield bp.sync(request=card_events)
 
         if is_regular_card_event(card_event):
@@ -651,6 +671,7 @@ def player_behavior_external(index, num_of_cards=2):
                 cards_played_in_taki = []
 
                 while True:
+                    call_dummy_python_taki_player_api(index, card_events, phase="taki_sequence")
                     card_event = yield bp.sync(request=card_events)
 
                     if card_event.name != f"p_{index}_closed_taki":
@@ -670,6 +691,7 @@ def player_behavior_external(index, num_of_cards=2):
             elif is_change_color_event(card_event):
                 card_events.remove(card_event)
                 selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                call_dummy_python_taki_player_api(index, selected_color_events, phase="change_color")
                 selected_color_event = yield bp.sync(request=selected_color_events)
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
             else:
@@ -1395,7 +1417,8 @@ def init_b_program(starting_player=1):
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        player_behavior(1, NUM_OF_CARDS),
+        # player_behavior(1, NUM_OF_CARDS),
+        player_behavior_external(1, NUM_OF_CARDS), # Use the external version of player 1 to allow more flexible strategies
         enforce_turns(2, starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
