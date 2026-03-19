@@ -1,11 +1,38 @@
-class PythonAgent:
-    def __init__(self):
-        self.last_observation = None
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
-    def reset(self, initial_observation=None):
+
+@dataclass(frozen=True)
+class GameObservation:
+    player_index: int
+    phase: str
+    hand: List[str]
+    candidate_actions: List[str]
+    top_card: Optional[str]
+    active_color: Optional[str]
+    rule_mode: str
+    taki_color: Optional[str]
+
+
+class AbstractPythonAgent(ABC):
+    @abstractmethod
+    def reset(self, initial_observation: Optional[GameObservation] = None) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_action(self, observation: GameObservation) -> Optional[str]:
+        raise NotImplementedError
+
+
+class PythonAgent(AbstractPythonAgent):
+    def __init__(self):
+        self.last_observation: Optional[GameObservation] = None
+
+    def reset(self, initial_observation: Optional[GameObservation] = None) -> None:
         self.last_observation = initial_observation
 
-    def _extract_card_color_and_type(self, event_name):
+    def _extract_card_color_and_type(self, event_name: str) -> Tuple[Optional[str], Optional[str]]:
         card_str_index = event_name.find("card")
         if card_str_index != -1:
             card_color = event_name[card_str_index + 7:]
@@ -37,12 +64,12 @@ class PythonAgent:
 
         return None, None
 
-    def _is_legal_action(self, action_name, observation):
-        phase = observation.get("phase")
-        top_card = observation.get("top_card")
-        active_color = observation.get("active_color")
-        rule_mode = observation.get("rule_mode")
-        taki_color = observation.get("taki_color")
+    def _is_legal_action(self, action_name: str, observation: GameObservation) -> bool:
+        phase = observation.phase
+        top_card = observation.top_card
+        active_color = observation.active_color
+        rule_mode = observation.rule_mode
+        taki_color = observation.taki_color
 
         if phase == "change_color":
             return action_name.startswith("selected_")
@@ -79,13 +106,12 @@ class PythonAgent:
             or (action_type is not None and action_type == top_type)
         )
 
-    def get_action(self, observation):
+    def get_action(self, observation: GameObservation) -> Optional[str]:
         self.last_observation = observation
-        candidate_actions = observation.get("candidate_actions", [])
-        if not candidate_actions:
+        if not observation.candidate_actions:
             return None
 
-        for action_name in candidate_actions:
+        for action_name in observation.candidate_actions:
             if self._is_legal_action(action_name, observation):
                 return action_name
 

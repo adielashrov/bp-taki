@@ -8,7 +8,7 @@ import re
 import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
-from python_agent import PythonAgent
+from python_agent import GameObservation, PythonAgent
 
 NUM_OF_CARDS = 8 # Maybe the bug is related to number of cards?
 NUM_OF_PLAYERS = 2
@@ -717,36 +717,36 @@ def update_external_bridge_state_from_event(state, event: BPEvent, num_of_player
         return
 
 
-def build_external_observation(index: int, phase: str, candidate_events: list[BPEvent], state):
-    return {
-        "player_index": index,
-        "phase": phase,
-        "hand": [event.name for event in candidate_events if is_external_hand_card_event(event)],
-        "candidate_actions": [event.name for event in candidate_events],
-        "top_card": state["top_card"],
-        "active_color": state["active_color"],
-        "rule_mode": state["rule_mode"],
-        "taki_color": state["taki_color"],
-    }
+def build_external_observation(index: int, phase: str, candidate_events: list[BPEvent], state) -> GameObservation:
+    return GameObservation(
+        player_index=index,
+        phase=phase,
+        hand=[event.name for event in candidate_events if is_external_hand_card_event(event)],
+        candidate_actions=[event.name for event in candidate_events],
+        top_card=state["top_card"],
+        active_color=state["active_color"],
+        rule_mode=state["rule_mode"],
+        taki_color=state["taki_color"],
+    )
 
 
 def resolve_external_action_event(
     action_name,
-    observation,
+    observation: GameObservation,
     candidate_events: list[BPEvent],
 ) -> BPEvent:
     for event in candidate_events:
         if event.name == action_name:
             logger.info(
-                f"[PLAYER_EXTERNAL_API] player={observation['player_index']} "
-                f"phase={observation['phase']} action={action_name}"
+                f"[PLAYER_EXTERNAL_API] player={observation.player_index} "
+                f"phase={observation.phase} action={action_name}"
             )
             return event
 
     candidate_action_names = [event.name for event in candidate_events]
     raise RuntimeError(
         f"[PLAYER_EXTERNAL_API] Agent returned unknown action '{action_name}' "
-        f"for player={observation['player_index']} phase={observation['phase']}. "
+        f"for player={observation.player_index} phase={observation.phase}. "
         f"Candidate actions={candidate_action_names}"
     )
 
