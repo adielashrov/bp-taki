@@ -8,7 +8,8 @@ import re
 import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
-from python_agent import GameObservation, PythonAgent
+from python_taki_api.python_agent import PythonAgent
+from python_taki_api.taki_types import GameObservation
 
 NUM_OF_CARDS = 8 # Maybe the bug is related to number of cards?
 NUM_OF_PLAYERS = 2
