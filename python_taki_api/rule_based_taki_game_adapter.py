@@ -1,16 +1,17 @@
+import re
 from typing import List, Optional
 
 from .taki_game import TakiGame
 from .taki_types import Action, ActionType, Card, CardKind, Color, GameObservation, GameState, Phase
 
 
-class DummyTakiGame(TakiGame):
+class RuleBasedTakiGameAdapter(TakiGame):
     """
-    Minimal reference implementation of the TakiGame contract.
+    Minimal rule-based adapter over the TakiGame contract.
 
     This is intentionally not a full TAKI rules engine. Its purpose is to:
     - demonstrate how a concrete game class satisfies the abstract contract
-    - provide a simple object a Python agent can be exercised against
+    - provide legality filtering and action-name resolution for the Python agent
     - keep the real TAKI implementation for a separate session
     """
 
@@ -75,6 +76,13 @@ class DummyTakiGame(TakiGame):
             actions.append(Action(type=ActionType.DRAW_CARD))
 
         return actions
+
+    def legal_action_names_from_observation(self, observation: GameObservation) -> List[str]:
+        return [
+            action_name
+            for action_name in observation.candidate_actions
+            if self._is_legal_action_name(action_name, observation)
+        ]
 
     def step(self, state: GameState, action: Action) -> GameState:
         next_state = GameState(
@@ -179,3 +187,121 @@ class DummyTakiGame(TakiGame):
             f"Unknown action '{action_name}' for player {player_index}. "
             f"Known actions={[self.action_to_name(player_index, action) for action in self.legal_actions(state)]}"
         )
+
+    def _is_legal_action_name(self, action_name: str, observation: GameObservation) -> bool:
+        action = self._action_name_to_action(action_name)
+        if action is None:
+            return False
+
+        phase = observation.phase
+        top_card = self._card_from_event_name(observation.top_card)
+        active_color = self._color_from_string(observation.active_color)
+        taki_color = self._color_from_string(observation.taki_color)
+
+        if phase == Phase.CHANGE_COLOR.value:
+            return action.type == ActionType.SELECT_COLOR
+
+        if phase == Phase.TAKI_SEQUENCE.value:
+            if action.type == ActionType.CLOSE_TAKI:
+                return True
+            if action.type != ActionType.PLAY_CARD or action.card is None:
+                return False
+            if action.card.kind == CardKind.CHANGE_COLOR:
+                return False
+            if action.card.kind == CardKind.SUPER_TAKI:
+                return True
+            return action.card.color == taki_color
+
+        if action.type == ActionType.DRAW_CARD:
+            return True
+        if action.type != ActionType.PLAY_CARD or action.card is None:
+            return False
+        if action.card.kind in (CardKind.CHANGE_COLOR, CardKind.SUPER_TAKI):
+            return True
+
+        if observation.rule_mode == "color_only":
+            return action.card.color == active_color
+
+        if top_card is None:
+            return True
+
+        if top_card.kind == CardKind.TAKI and action.card.kind == CardKind.TAKI:
+            return True
+
+        return self._matches_top_card(action.card, top_card)
+
+    def _action_name_to_action(self, action_name: Optional[str]) -> Optional[Action]:
+        if action_name is None:
+            return None
+
+        if action_name.endswith("_draw_card"):
+            return Action(type=ActionType.DRAW_CARD)
+
+        if action_name.endswith("_closed_taki"):
+            return Action(type=ActionType.CLOSE_TAKI)
+
+        if action_name.startswith("selected_"):
+            color = self._color_from_string(action_name.replace("selected_", "", 1))
+            if color is None:
+                return None
+            return Action(type=ActionType.SELECT_COLOR, color=color)
+
+        card = self._card_from_event_name(action_name)
+        if card is None:
+            return None
+        return Action(type=ActionType.PLAY_CARD, card=card)
+
+    def _card_from_event_name(self, event_name: Optional[str]) -> Optional[Card]:
+        if not event_name:
+            return None
+
+        stripped_name = event_name
+        while True:
+            next_name = re.sub(r"^(deal_|leading_)", "", stripped_name)
+            if next_name == stripped_name:
+                break
+            stripped_name = next_name
+
+        stripped_name = re.sub(r"^p_\d+_", "", stripped_name)
+        stripped_name = re.sub(r"^p_", "", stripped_name)
+
+        card_match = re.match(r"^card_(\d+)_(red|blue|green)$", stripped_name)
+        if card_match:
+            return Card(
+                kind=CardKind.NUMBER,
+                color=self._color_from_string(card_match.group(2)),
+                number=int(card_match.group(1)),
+            )
+
+        stop_match = re.match(r"^stop_(red|blue|green)$", stripped_name)
+        if stop_match:
+            return Card(kind=CardKind.STOP, color=self._color_from_string(stop_match.group(1)))
+
+        taki_match = re.match(r"^taki_(red|blue|green)$", stripped_name)
+        if taki_match:
+            return Card(kind=CardKind.TAKI, color=self._color_from_string(taki_match.group(1)))
+
+        if stripped_name == "change_color":
+            return Card(kind=CardKind.CHANGE_COLOR)
+
+        if stripped_name == "super_taki":
+            return Card(kind=CardKind.SUPER_TAKI)
+
+        return None
+
+    def _matches_top_card(self, card: Card, top_card: Card) -> bool:
+        if card.color is not None and top_card.color is not None and card.color == top_card.color:
+            return True
+
+        if card.kind == CardKind.NUMBER and top_card.kind == CardKind.NUMBER:
+            return card.number == top_card.number
+
+        return card.kind == top_card.kind
+
+    def _color_from_string(self, color_value: Optional[str]) -> Optional[Color]:
+        if color_value is None:
+            return None
+        try:
+            return Color(color_value)
+        except ValueError:
+            return None

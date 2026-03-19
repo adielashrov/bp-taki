@@ -39,6 +39,13 @@ class TakiGame(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def legal_action_names_from_observation(self, observation: GameObservation) -> List[str]:
+        """
+        Return the legal external action names for a player-facing observation.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def action_to_name(self, player_index: int, action: Action) -> str:
         """
         Convert a domain Action into the external action-name representation.
