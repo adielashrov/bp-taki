@@ -10,6 +10,14 @@ class TakiGame(ABC):
 
     A concrete implementation is expected to own the full game rules and state
     transitions independently of the BP program.
+
+    Expected call lifecycle:
+        state = game.reset()                          # start a new episode
+        while not game.is_terminal(state):
+            obs = game.observe(state, current_player) # build player observation
+            action = agent.get_action(obs)            # agent picks an action
+            action = game.resolve_action_name(state, action)
+            state = game.step(state, action)          # advance the state
     """
 
     @abstractmethod

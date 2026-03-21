@@ -61,7 +61,7 @@ class GameState:
 @dataclass(frozen=True)
 class GameObservation:
     player_index: int
-    phase: str
+    phase: Phase
     hand: List[str]
     candidate_actions: List[str]
     top_card: Optional[str]

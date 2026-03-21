@@ -5,6 +5,9 @@ from .taki_game import TakiGame
 from .taki_types import Action, ActionType, Card, CardKind, Color, GameObservation, GameState, Phase
 
 
+_COLOR_PATTERN = "|".join(c.value for c in Color)
+
+
 class RuleBasedTakiGameAdapter(TakiGame):
     """
     Minimal rule-based adapter over the TakiGame contract.
@@ -52,7 +55,7 @@ class RuleBasedTakiGameAdapter(TakiGame):
 
         return GameObservation(
             player_index=player_index,
-            phase=state.phase.value,
+            phase=state.phase,
             hand=hand,
             candidate_actions=candidate_actions,
             top_card=self.card_to_name(player_index, state.top_card) if state.top_card else None,
@@ -119,7 +122,9 @@ class RuleBasedTakiGameAdapter(TakiGame):
         if action.type != ActionType.PLAY_CARD or action.card is None:
             raise ValueError(f"Unsupported action: {action}")
 
-        next_state.hands[player_index].remove(action.card)
+        hand = next_state.hands[player_index]
+        idx = hand.index(action.card)
+        next_state.hands[player_index] = hand[:idx] + hand[idx + 1:]
         next_state.discard_pile.append(action.card)
         next_state.top_card = action.card
 
@@ -198,10 +203,10 @@ class RuleBasedTakiGameAdapter(TakiGame):
         active_color = self._color_from_string(observation.active_color)
         taki_color = self._color_from_string(observation.taki_color)
 
-        if phase == Phase.CHANGE_COLOR.value:
+        if phase == Phase.CHANGE_COLOR:
             return action.type == ActionType.SELECT_COLOR
 
-        if phase == Phase.TAKI_SEQUENCE.value:
+        if phase == Phase.TAKI_SEQUENCE:
             if action.type == ActionType.CLOSE_TAKI:
                 return True
             if action.type != ActionType.PLAY_CARD or action.card is None:
@@ -265,7 +270,7 @@ class RuleBasedTakiGameAdapter(TakiGame):
         stripped_name = re.sub(r"^p_\d+_", "", stripped_name)
         stripped_name = re.sub(r"^p_", "", stripped_name)
 
-        card_match = re.match(r"^card_(\d+)_(red|blue|green)$", stripped_name)
+        card_match = re.match(rf"^card_(\d+)_({_COLOR_PATTERN})$", stripped_name)
         if card_match:
             return Card(
                 kind=CardKind.NUMBER,
@@ -273,11 +278,11 @@ class RuleBasedTakiGameAdapter(TakiGame):
                 number=int(card_match.group(1)),
             )
 
-        stop_match = re.match(r"^stop_(red|blue|green)$", stripped_name)
+        stop_match = re.match(rf"^stop_({_COLOR_PATTERN})$", stripped_name)
         if stop_match:
             return Card(kind=CardKind.STOP, color=self._color_from_string(stop_match.group(1)))
 
-        taki_match = re.match(r"^taki_(red|blue|green)$", stripped_name)
+        taki_match = re.match(rf"^taki_({_COLOR_PATTERN})$", stripped_name)
         if taki_match:
             return Card(kind=CardKind.TAKI, color=self._color_from_string(taki_match.group(1)))
 

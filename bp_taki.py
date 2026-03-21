@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
 from python_taki_api.python_agent import PythonAgent
-from python_taki_api.taki_types import GameObservation
+from python_taki_api.taki_types import GameObservation, Phase
 
 NUM_OF_CARDS = 8 # Maybe the bug is related to number of cards?
 NUM_OF_PLAYERS = 2
@@ -718,7 +718,7 @@ def update_external_bridge_state_from_event(state, event: BPEvent, num_of_player
         return
 
 
-def build_external_observation(index: int, phase: str, candidate_events: list[BPEvent], state) -> GameObservation:
+def build_external_observation(index: int, phase: Phase, candidate_events: list[BPEvent], state) -> GameObservation:
     return GameObservation(
         player_index=index,
         phase=phase,
@@ -745,11 +745,19 @@ def resolve_external_action_event(
             return event
 
     candidate_action_names = [event.name for event in candidate_events]
-    raise RuntimeError(
+    if not candidate_events:
+        raise RuntimeError(
+            f"[PLAYER_EXTERNAL_API] No candidate actions available for "
+            f"player={observation.player_index} phase={observation.phase}"
+        )
+    logger.warning(
         f"[PLAYER_EXTERNAL_API] Agent returned unknown action '{action_name}' "
         f"for player={observation.player_index} phase={observation.phase}. "
-        f"Candidate actions={candidate_action_names}"
+        f"Candidate actions={candidate_action_names}. "
+        f"Falling back to '{candidate_events[0].name}'"
     )
+    return candidate_events[0]
+
 
 @bp.thread
 def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_players=2):
@@ -789,7 +797,7 @@ def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_pl
             update_external_bridge_state_from_event(state, observed_event, num_of_players)
             continue
 
-        observation = build_external_observation(index, "turn", card_events, state)
+        observation = build_external_observation(index, Phase.TURN, card_events, state)
         if not agent_initialized:
             python_agent.reset(observation)
             agent_initialized = True
@@ -824,7 +832,7 @@ def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_pl
                 cards_played_in_taki = []
 
                 while True:
-                    observation = build_external_observation(index, "taki_sequence", card_events, state)
+                    observation = build_external_observation(index, Phase.TAKI_SEQUENCE, card_events, state)
                     action_name = python_agent.get_action(observation)
                     requested_event = resolve_external_action_event(action_name, observation, card_events)
                     taki_event = yield bp.sync(request=requested_event)
@@ -849,7 +857,7 @@ def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_pl
             elif is_change_color_event(card_event):
                 card_events.remove(card_event)
                 selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
-                observation = build_external_observation(index, "change_color", selected_color_events, state)
+                observation = build_external_observation(index, Phase.CHANGE_COLOR, selected_color_events, state)
                 action_name = python_agent.get_action(observation)
                 requested_color_event = resolve_external_action_event(action_name, observation, selected_color_events)
                 selected_color_event = yield bp.sync(request=requested_color_event)
