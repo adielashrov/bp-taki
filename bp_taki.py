@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 import bppy as bp
 from bppy.model.b_priority_event import BPEvent
 from bppy.model.event_selection.event_priority_selection_strategy import EventPrioritySelectionStrategy
@@ -8,6 +8,8 @@ import re
 import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
+from python_taki_api.python_agent import PythonAgent
+from python_taki_api.taki_types import GameObservation, Phase
 
 NUM_OF_CARDS = 8 # Maybe the bug is related to number of cards?
 NUM_OF_PLAYERS = 2
@@ -597,6 +599,285 @@ def player_behavior(index, num_of_cards=2):
             break
         else: # else announce that you have finished your turn.
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
+
+
+def is_selected_color_event(event: BPEvent) -> bool:
+    return hasattr(event, "name") and event.name.startswith("selected_")
+
+
+def is_external_hand_card_event(event: BPEvent) -> bool:
+    return (
+        is_regular_card_event(event)
+        or is_action_card_event(event)
+    )
+
+
+def init_external_bridge_state(index: int, starting_player: int, num_of_players: int):
+    return {
+        "player_index": index,
+        "current_player": starting_player,
+        "next_player": (starting_player + 1) % num_of_players,
+        "top_card": None,
+        "active_color": None,
+        "match_color": None,
+        "match_type": None,
+        "rule_mode": "color_or_type",
+        "taki_color": None,
+        "taki_last_event": None,
+        "taki_last_color": None,
+        "taki_last_type": None,
+    }
+
+def update_external_bridge_state_from_event(state, event: BPEvent, num_of_players: int) -> None:
+    if event.name == "next_turn":
+        state["current_player"] = state["next_player"]
+        state["next_player"] = (state["next_player"] + 1) % num_of_players
+        return
+
+    if event.name.startswith(f"p_{state['current_player']}_stop"):
+        state["next_player"] = (state["next_player"] + 1) % num_of_players
+
+    if event.name.startswith("leading_"):
+        card_color, card_type = extract_card_color_and_type(event)
+        state["top_card"] = event.name
+        state["active_color"] = card_color
+        state["match_color"] = card_color
+        state["match_type"] = card_type
+        state["rule_mode"] = "color_or_type"
+        state["taki_color"] = None
+        state["taki_last_event"] = None
+        state["taki_last_color"] = None
+        state["taki_last_type"] = None
+        return
+
+    if is_selected_color_event(event):
+        selected_color, _ = extract_card_color_and_type(event)
+        state["top_card"] = event.name
+        state["active_color"] = selected_color
+        state["match_color"] = selected_color
+        state["match_type"] = "CHANGE_COLOR"
+        state["rule_mode"] = "color_only"
+        return
+
+    if is_any_taki_event(event):
+        state["top_card"] = event.name
+        state["rule_mode"] = "taki"
+        if is_taki_card_event(event):
+            taki_color, taki_type = extract_card_color_and_type(event)
+        else:
+            taki_color = state["active_color"]
+            taki_type = "SUPER_TAKI"
+        state["active_color"] = taki_color
+        state["taki_color"] = taki_color
+        state["taki_last_event"] = event.name
+        state["taki_last_color"] = taki_color
+        state["taki_last_type"] = taki_type
+        return
+
+    if event.name.endswith("_closed_taki"):
+        return
+
+    if event.name == "done_post_action":
+        # For most action cards, the bridge state is already finalized when the
+        # action event itself is observed. `done_post_action` is only stateful
+        # for the bridge when it closes a TAKI sequence and commits the last
+        # effective card/color back into normal color-or-type matching mode.
+        if state["rule_mode"] == "taki":
+            state["rule_mode"] = "color_or_type"
+            state["match_color"] = state["taki_last_color"]
+            state["match_type"] = state["taki_last_type"]
+            state["active_color"] = state["match_color"]
+            if state["taki_last_event"] is not None:
+                state["top_card"] = state["taki_last_event"]
+            state["taki_color"] = None
+            state["taki_last_event"] = None
+            state["taki_last_color"] = None
+            state["taki_last_type"] = None
+        return
+
+    if is_regular_card_event(event) or is_stop_card_event(event):
+        card_color, card_type = extract_card_color_and_type(event)
+        state["top_card"] = event.name
+        state["active_color"] = card_color
+        if state["rule_mode"] == "taki":
+            state["taki_last_event"] = event.name
+            state["taki_last_color"] = card_color
+            state["taki_last_type"] = card_type
+        else:
+            state["match_color"] = card_color
+            state["match_type"] = card_type
+            state["rule_mode"] = "color_or_type"
+        return
+
+    if is_change_color_event(event):
+        state["top_card"] = event.name
+        if state["rule_mode"] == "taki":
+            state["taki_last_event"] = event.name
+            state["taki_last_color"] = state["active_color"]
+            state["taki_last_type"] = "CHANGE_COLOR"
+        return
+
+
+def build_external_observation(index: int, phase: Phase, candidate_events: list[BPEvent], state) -> GameObservation:
+    return GameObservation(
+        player_index=index,
+        phase=phase,
+        hand=[event.name for event in candidate_events if is_external_hand_card_event(event)],
+        candidate_actions=[event.name for event in candidate_events],
+        top_card=state["top_card"],
+        active_color=state["active_color"],
+        rule_mode=state["rule_mode"],
+        taki_color=state["taki_color"],
+    )
+
+
+def resolve_external_action_event(
+    action_name,
+    observation: GameObservation,
+    candidate_events: list[BPEvent],
+) -> BPEvent:
+    for event in candidate_events:
+        if event.name == action_name:
+            logger.info(
+                f"[PLAYER_EXTERNAL_API] player={observation.player_index} "
+                f"phase={observation.phase} action={action_name}"
+            )
+            return event
+
+    candidate_action_names = [event.name for event in candidate_events]
+    if not candidate_events:
+        raise RuntimeError(
+            f"[PLAYER_EXTERNAL_API] No candidate actions available for "
+            f"player={observation.player_index} phase={observation.phase}"
+        )
+    logger.warning(
+        f"[PLAYER_EXTERNAL_API] Agent returned unknown action '{action_name}' "
+        f"for player={observation.player_index} phase={observation.phase}. "
+        f"Candidate actions={candidate_action_names}. "
+        f"Falling back to '{candidate_events[0].name}'"
+    )
+    return candidate_events[0]
+
+
+@bp.thread
+def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_players=2):
+    """
+    Bridge between the BP TAKI runtime and a Python policy with a Gym-like
+    observation -> action loop.
+    """
+    python_agent = PythonAgent()
+    state = init_external_bridge_state(index, starting_player, num_of_players)
+
+    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+
+    for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+
+    yield bp.sync(waitFor=BPEvent("finished_dealing_cards_to_players", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("deal_leading_card", priority=10.0))
+    leading_event = yield bp.sync(waitFor=leading_card_event_set)
+    update_external_bridge_state_from_event(state, leading_event, num_of_players)
+    yield bp.sync(waitFor=BPEvent("finished_leading_card", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    # Add draw_card_event to the cards events(Possible actions of player)
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    card_events.append(draw_card_event)
+
+    agent_initialized = False
+
+    while True:
+        if state["current_player"] != index:
+            observed_event = yield bp.sync(waitFor=bp.All())
+            update_external_bridge_state_from_event(state, observed_event, num_of_players)
+            continue
+
+        observation = build_external_observation(index, Phase.TURN, card_events, state)
+        if not agent_initialized:
+            python_agent.reset(observation)
+            agent_initialized = True
+        action_name = python_agent.get_action(observation)
+        requested_event = resolve_external_action_event(action_name, observation, card_events)
+        card_event = yield bp.sync(request=requested_event)
+        update_external_bridge_state_from_event(state, card_event, num_of_players)
+
+        if is_regular_card_event(card_event):
+            card_events.remove(card_event)
+        # If there is a draw card event, wait for a card to be dealt.
+        elif is_draw_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+        # If this is an action card - wait for done_post_action event.
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                logger.debug(f"{'=' * 60}")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] TAKI SEQUENCE STARTING: {card_event.name}")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] Removing TAKI from hand")
+                logger.debug(f"[PLAYER_EXTERNAL_{index}] Adding closed_taki to possible actions")
+                logger.debug(f"{'=' * 60}")
+
+                card_events.remove(card_event)  # Remove TAKI / Super_TAKI from player hand
+
+                # Add closed_taki event to the possible actions of the player, the correct priority here is crucial!
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+
+                cards_played_in_taki = []
+
+                while True:
+                    observation = build_external_observation(index, Phase.TAKI_SEQUENCE, card_events, state)
+                    action_name = python_agent.get_action(observation)
+                    requested_event = resolve_external_action_event(action_name, observation, card_events)
+                    taki_event = yield bp.sync(request=requested_event)
+                    update_external_bridge_state_from_event(state, taki_event, num_of_players)
+
+                    if taki_event.name != f"p_{index}_closed_taki":
+                        cards_played_in_taki.append(taki_event.name)
+                        if taki_event in card_events:
+                            card_events.remove(taki_event)
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Card played in TAKI: {taki_event.name}")
+                    else:
+                        card_events.remove(taki_event)
+                        logger.debug(f"{'=' * 60}")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] TAKI SEQUENCE ENDING")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Cards played: {cards_played_in_taki}")
+                        logger.debug(f"[PLAYER_EXTERNAL_{index}] Total cards in sequence: {len(cards_played_in_taki)}")
+                        logger.debug(f"{'=' * 60}")
+                        break
+
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                update_external_bridge_state_from_event(state, done_post_action_event, num_of_players)
+            elif is_change_color_event(card_event):
+                card_events.remove(card_event)
+                selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                observation = build_external_observation(index, Phase.CHANGE_COLOR, selected_color_events, state)
+                action_name = python_agent.get_action(observation)
+                requested_color_event = resolve_external_action_event(action_name, observation, selected_color_events)
+                selected_color_event = yield bp.sync(request=requested_color_event)
+                update_external_bridge_state_from_event(state, selected_color_event, num_of_players)
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                update_external_bridge_state_from_event(state, done_post_action_event, num_of_players)
+            else:
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                update_external_bridge_state_from_event(state, done_post_action_event, num_of_players)
+                card_events.remove(card_event)
+
+        if list_does_not_contain_card_events(card_events):
+            no_more_cards_event = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+            final_event = yield bp.sync(request=no_more_cards_event)
+            update_external_bridge_state_from_event(state, final_event, num_of_players)
+            break
+
+        next_turn_event = BPEvent("next_turn", priority=10.0)
+        observed_next_turn = yield bp.sync(request=next_turn_event)
+        update_external_bridge_state_from_event(state, observed_next_turn, num_of_players)
 
 
 def add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, original_priority, card_events):
@@ -1230,13 +1511,19 @@ def verify_turn_alternation():
 def test_consecutive_regular_cards_matching():
     card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
     while True:
-        card_event_2 = yield bp.sync(waitFor=bp.EventSetList([played_regular_cards_event_set, BPEvent("p_0_change_color"), BPEvent("p_1_change_color")]))
-        if "change_color" not in card_event_2.name:
+        wait_events = bp.EventSetList([
+            played_regular_cards_event_set,
+            bp.EventSet(is_action_card_event),
+        ])
+        card_event_2 = yield bp.sync(waitFor=wait_events)
+        if is_regular_card_event(card_event_2):
             card_1_color, card_1_type = extract_card_color_and_type(card_event_1)
             card_2_color, card_2_type = extract_card_color_and_type(card_event_2)
             assert card_1_color == card_2_color or card_1_type == card_2_type, f"Illegal card placement: {card_event_1.name} followed by {card_event_2.name}"
             card_event_1 = card_event_2
-        else: # reset on change_color event
+        else:
+            # Any action card can change the effective top-card semantics, so
+            # restart the regular-card chain from the next regular placement.
             card_event_1 = yield bp.sync(waitFor=played_regular_cards_event_set)
 
 
@@ -1304,13 +1591,14 @@ def setup_logger():
 def init_b_program(starting_player=1):
     
     enable_tests = True
-   
+
     # Core game threads
     game_threads = [
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        player_behavior(1, NUM_OF_CARDS),
+        # player_behavior(1, NUM_OF_CARDS),
+        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS), # Use the external version of player 1 to allow more flexible strategies
         enforce_turns(2, starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
