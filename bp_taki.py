@@ -718,7 +718,7 @@ def update_external_bridge_state_from_event(state, event: BPEvent, num_of_player
         return
 
 
-def card_event_name_to_descriptor(event_name) -> str | None:
+def card_event_name_to_descriptor(event_name) -> Optional[str]:
     """Strip player and deal/leading prefixes from a BP event name to get a plain card descriptor.
 
     e.g. ``p_1_card_4_blue`` → ``card_4_blue``, ``leading_card_3_red`` → ``card_3_red``
