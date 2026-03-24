@@ -56,7 +56,7 @@ class RuleBasedTakiGameAdapter(TakiGame):
             player_index=player_index,
             phase=state.phase,
             hand=hand,
-            top_card=self.card_to_name(player_index, state.top_card) if state.top_card else None,
+            top_card=self.card_to_descriptor(state.top_card),
             active_color=state.active_color.value if state.active_color else None,
             rule_mode=RuleMode.MATCH_COLOR_OR_TYPE,
             taki_color=state.taki_color.value if state.taki_color else None,
@@ -156,22 +156,25 @@ class RuleBasedTakiGameAdapter(TakiGame):
     def is_terminal(self, state: GameState) -> bool:
         return state.winner is not None or state.phase == Phase.TERMINAL
 
-    def card_to_name(self, player_index: int, card: Optional[Card]) -> Optional[str]:
+    def card_to_descriptor(self, card: Optional[Card]) -> Optional[str]:
+        """Return the player-prefix-free card descriptor string."""
         if card is None:
             return None
-
-        prefix = f"p_{player_index}_"
         if card.kind == CardKind.NUMBER and card.color is not None and card.number is not None:
-            return f"{prefix}card_{card.number}_{card.color.value}"
+            return f"card_{card.number}_{card.color.value}"
         if card.kind == CardKind.STOP and card.color is not None:
-            return f"{prefix}stop_{card.color.value}"
+            return f"stop_{card.color.value}"
         if card.kind == CardKind.CHANGE_COLOR:
-            return f"{prefix}change_color"
+            return "change_color"
         if card.kind == CardKind.TAKI and card.color is not None:
-            return f"{prefix}taki_{card.color.value}"
+            return f"taki_{card.color.value}"
         if card.kind == CardKind.SUPER_TAKI:
-            return f"{prefix}super_taki"
+            return "super_taki"
         raise ValueError(f"Unsupported card: {card}")
+
+    def card_to_name(self, player_index: int, card: Optional[Card]) -> Optional[str]:
+        descriptor = self.card_to_descriptor(card)
+        return f"p_{player_index}_{descriptor}" if descriptor is not None else None
 
     def action_to_name(self, player_index: int, action: Action) -> str:
         if action.type == ActionType.DRAW_CARD:

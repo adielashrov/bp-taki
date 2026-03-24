@@ -16,6 +16,13 @@ class TakiAgent(ABC):
 
     @abstractmethod
     def reset(self, initial_observation: Optional[GameObservation] = None) -> None:
+        """
+        Called once at the start of each episode, before the first get_action call.
+
+        Agents that maintain internal state (e.g. tracking which cards have
+        been played) should initialise that state here.
+        Stateless agents may ignore this argument.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -35,8 +42,11 @@ class TakiAgent(ABC):
             - ``TURN``          → ``p_{i}_draw_card`` is available
             - ``TAKI_SEQUENCE`` → ``p_{i}_closed_taki`` is available
             - ``CHANGE_COLOR``  → ``selected_{color}`` for each color
-        - ``top_card``, ``active_color``, ``rule_mode``: determine which
-          cards in hand are legal to play on a normal turn
+        - ``top_card``: the top card as a player-prefix-free descriptor
+          (e.g. ``card_4_blue``, ``stop_red``) — compare against cards in
+          ``hand`` by ignoring the ``p_{i}_`` prefix on hand entries
+        - ``active_color``, ``rule_mode``: determine which cards in hand
+          are legal to play on a normal turn
         - ``taki_color``: constrains which cards are legal during a TAKI
           sequence (cards must match this color, except SUPER_TAKI)
 

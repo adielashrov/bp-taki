@@ -718,12 +718,24 @@ def update_external_bridge_state_from_event(state, event: BPEvent, num_of_player
         return
 
 
+def card_event_name_to_descriptor(event_name) -> str | None:
+    """Strip player and deal/leading prefixes from a BP event name to get a plain card descriptor.
+
+    e.g. ``p_1_card_4_blue`` → ``card_4_blue``, ``leading_card_3_red`` → ``card_3_red``
+    """
+    if event_name is None:
+        return None
+    name = re.sub(r"^(deal_|leading_)+", "", event_name)
+    name = re.sub(r"^p_\d+_", "", name)
+    return name
+
+
 def build_external_observation(index: int, phase: Phase, candidate_events: list[BPEvent], state) -> GameObservation:
     return GameObservation(
         player_index=index,
         phase=phase,
         hand=[event.name for event in candidate_events if is_external_hand_card_event(event)],
-        top_card=state["top_card"],
+        top_card=card_event_name_to_descriptor(state["top_card"]),
         active_color=state["active_color"],
         rule_mode=state["rule_mode"],
         taki_color=state["taki_color"],

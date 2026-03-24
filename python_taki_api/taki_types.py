@@ -107,8 +107,13 @@ class GameObservation:
             actions (draw_card, close_taki, selected_color) are available,
             using the other observation fields (phase, top_card, active_color,
             rule_mode, taki_color).
-        top_card: The top card of the discard pile as an action-name string, or
-            None if the discard pile is empty.
+        top_card: The card on top of the discard pile as a card descriptor
+            string, or None if the discard pile is empty.  Uses a
+            player-prefix-free format: ``card_{number}_{color}``,
+            ``stop_{color}``, ``taki_{color}``, ``super_taki``,
+            ``change_color``.  This is purely informational — the agent uses
+            it to determine which cards in hand are legal to play, but never
+            returns it as an action.
         active_color: The color that must be matched this turn, or None during
             the CHANGE_COLOR phase.
         rule_mode: Determines card legality on a normal TURN (see RuleMode).
