@@ -18,6 +18,30 @@ class TakiGame(ABC):
             action = agent.get_action(obs)            # agent picks an action
             action = game.resolve_action_name(state, action)
             state = game.step(state, action)          # advance the state
+
+    Action name format
+    ------------------
+    Action names are strings that uniquely identify a player's action in the
+    shared event namespace (required for behavioural-programming integration,
+    where all player events live in the same global space).
+
+    Card names follow the pattern ``p_{player_index}_{card_descriptor}``:
+
+        Number card : ``p_{i}_card_{number}_{color}``   e.g. ``p_0_card_4_blue``
+        Stop card   : ``p_{i}_stop_{color}``            e.g. ``p_1_stop_green``
+        TAKI card   : ``p_{i}_taki_{color}``            e.g. ``p_0_taki_red``
+        Super TAKI  : ``p_{i}_super_taki``
+        Change color: ``p_{i}_change_color``
+
+    Non-card actions:
+
+        Draw card   : ``p_{i}_draw_card``
+        Close TAKI  : ``p_{i}_closed_taki``
+        Select color: ``selected_{color}``              e.g. ``selected_red``
+            (no player prefix — color selection is a global game event)
+
+    Where ``{color}`` is one of ``red``, ``blue``, ``green`` and ``{i}`` is the
+    zero-based player index.
     """
 
     @abstractmethod
@@ -57,6 +81,11 @@ class TakiGame(ABC):
     def action_to_name(self, player_index: int, action: Action) -> str:
         """
         Convert a domain Action into the external action-name representation.
+
+        ``player_index`` is required because action names are player-scoped:
+        two players performing the same action (e.g. both drawing a card) must
+        produce distinct names so that the behavioural-programming event bus can
+        tell them apart.  See the class docstring for the full name format.
         """
         raise NotImplementedError
 
@@ -64,6 +93,11 @@ class TakiGame(ABC):
     def resolve_action_name(self, state: GameState, action_name: str) -> Action:
         """
         Resolve an agent-returned action name into a concrete domain Action.
+
+        The name must be one of the strings produced by action_to_name for the
+        current player and state (i.e. it should appear in
+        GameObservation.candidate_actions).  See the class docstring for the
+        full name format.
         """
         raise NotImplementedError
 

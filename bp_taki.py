@@ -723,7 +723,6 @@ def build_external_observation(index: int, phase: Phase, candidate_events: list[
         player_index=index,
         phase=phase,
         hand=[event.name for event in candidate_events if is_external_hand_card_event(event)],
-        candidate_actions=[event.name for event in candidate_events],
         top_card=state["top_card"],
         active_color=state["active_color"],
         rule_mode=state["rule_mode"],

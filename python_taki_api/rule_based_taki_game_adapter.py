@@ -2,7 +2,7 @@ import re
 from typing import List, Optional
 
 from .taki_game import TakiGame
-from .taki_types import Action, ActionType, Card, CardKind, Color, GameObservation, GameState, Phase
+from .taki_types import Action, ActionType, Card, CardKind, Color, GameObservation, GameState, Phase, RuleMode
 
 
 _COLOR_PATTERN = "|".join(c.value for c in Color)
@@ -50,17 +50,15 @@ class RuleBasedTakiGameAdapter(TakiGame):
         )
 
     def observe(self, state: GameState, player_index: int) -> GameObservation:
-        candidate_actions = [self.action_to_name(player_index, action) for action in self.legal_actions(state)]
         hand = [self.card_to_name(player_index, card) for card in state.hands[player_index]]
 
         return GameObservation(
             player_index=player_index,
             phase=state.phase,
             hand=hand,
-            candidate_actions=candidate_actions,
             top_card=self.card_to_name(player_index, state.top_card) if state.top_card else None,
             active_color=state.active_color.value if state.active_color else None,
-            rule_mode="match_color_or_type",
+            rule_mode=RuleMode.MATCH_COLOR_OR_TYPE,
             taki_color=state.taki_color.value if state.taki_color else None,
         )
 
@@ -81,11 +79,14 @@ class RuleBasedTakiGameAdapter(TakiGame):
         return actions
 
     def legal_action_names_from_observation(self, observation: GameObservation) -> List[str]:
-        return [
-            action_name
-            for action_name in observation.candidate_actions
-            if self._is_legal_action_name(action_name, observation)
-        ]
+        i = observation.player_index
+        if observation.phase == Phase.CHANGE_COLOR:
+            action_names = [f"selected_{color.value}" for color in Color]
+        elif observation.phase == Phase.TAKI_SEQUENCE:
+            action_names = list(observation.hand) + [f"p_{i}_closed_taki"]
+        else:
+            action_names = list(observation.hand) + [f"p_{i}_draw_card"]
+        return [name for name in action_names if self._is_legal_action_name(name, observation)]
 
     def step(self, state: GameState, action: Action) -> GameState:
         next_state = GameState(
@@ -224,7 +225,7 @@ class RuleBasedTakiGameAdapter(TakiGame):
         if action.card.kind in (CardKind.CHANGE_COLOR, CardKind.SUPER_TAKI):
             return True
 
-        if observation.rule_mode == "color_only":
+        if observation.rule_mode == RuleMode.COLOR_ONLY:
             return action.card.color == active_color
 
         if top_card is None:
