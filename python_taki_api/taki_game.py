@@ -1,47 +1,71 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from .taki_types import Action, GameObservation, GameState
+"""
+TAKI game interfaces.
+
+IMPORTANT SCOPE NOTE:
+This code models a reduced TAKI variant, not the full official game.
+
+Currently supported card kinds:
+- NUMBER
+- STOP
+- CHANGE_COLOR
+- TAKI
+- SUPER_TAKI
+
+Currently supported action types:
+- PLAY_CARD
+- DRAW_CARD
+- CLOSE_TAKI
+- SELECT_COLOR
+
+Not currently modeled:
+- PLUS
+- PLUS_2
+- PLUS_3
+- PLUS_3_BREAKER
+- KING
+- CHANGE_DIRECTION
+- "last card" announcement penalties
+- full official tournament / pyramid rules
+
+Any implementation based on this API should target this reduced variant
+unless the interface is explicitly extended.
+
+The reference semantics for this variant are defined by
+RuleBasedTakiGameAdapter. Implementations should match the externally
+observable semantics of RuleBasedTakiGameAdapter unless explicitly documented otherwise.
+"""
 
 
 class TakiGame(ABC):
     """
-    Abstract contract for a standalone Python TAKI engine.
+    Abstract interface for a TAKI game engine.
 
-    A concrete implementation is expected to own the full game rules and state
-    transitions independently of the BP program.
+    State is a plain ``Dict[str, Any]`` with the following keys:
+        hands         : List[List[str]] — each player's hand as card descriptors
+        draw_pile     : List[str]
+        discard_pile  : List[str]
+        current_player: int
+        top_card      : Optional[str] — card descriptor, or None
+        active_color  : Optional[str] — "red" | "blue" | "green" | None
+        phase         : str — "turn" | "taki_sequence" | "change_color" | "terminal"
+        taki_color    : Optional[str]
+        winner        : Optional[int]
 
-    Expected call lifecycle:
-        state = game.reset()                          # start a new episode
-        while not game.is_terminal(state):
-            obs = game.observe(state, current_player) # build player observation
-            action = agent.get_action(obs)            # agent picks an action
-            action = game.resolve_action_name(state, action)
-            state = game.step(state, action)          # advance the state
+    Observations are plain ``Dict[str, str]`` with the same keys as those
+    documented on ``TakiAgent.get_action``.
 
-    Action name format
-    ------------------
-    Action names are strings that uniquely identify a player's action in the
-    shared event namespace (required for behavioural-programming integration,
-    where all player events live in the same global space).
-
-    Card names follow the pattern ``p_{player_index}_{card_descriptor}``:
-
-        Number card : ``p_{i}_card_{number}_{color}``   e.g. ``p_0_card_4_blue``
-        Stop card   : ``p_{i}_stop_{color}``            e.g. ``p_1_stop_green``
-        TAKI card   : ``p_{i}_taki_{color}``            e.g. ``p_0_taki_red``
-        Super TAKI  : ``p_{i}_super_taki``
-        Change color: ``p_{i}_change_color``
-
-    Non-card actions:
-
-        Draw card   : ``p_{i}_draw_card``
-        Close TAKI  : ``p_{i}_closed_taki``
-        Select color: ``selected_{color}``              e.g. ``selected_red``
-            (no player prefix — color selection is a global game event)
-
-    Where ``{color}`` is one of ``red``, ``blue``, ``green`` and ``{i}`` is the
-    zero-based player index.
+    Action names are prefix-free card descriptors or non-card action strings:
+        Number card : card_{number}_{color}   e.g. card_4_blue
+        Stop card   : stop_{color}
+        TAKI card   : taki_{color}
+        Super TAKI  : super_taki
+        Change color: change_color
+        Draw card   : draw_card
+        Close TAKI  : closed_taki
+        Select color: selected_{color}
     """
 
     @abstractmethod
@@ -50,67 +74,26 @@ class TakiGame(ABC):
         seed: Optional[int] = None,
         num_players: int = 2,
         hand_size: int = 8,
-    ) -> GameState:
-        """
-        Initialize and return a fresh game state.
-        """
+    ) -> Dict[str, Any]:
+        """Initialize and return a fresh game state."""
         raise NotImplementedError
 
     @abstractmethod
-    def observe(self, state: GameState, player_index: int) -> GameObservation:
-        """
-        Build the player-facing observation for the requested player.
-        """
+    def observe(self, state: Dict[str, Any], player_index: int) -> Dict[str, str]:
+        """Build the player-facing observation for the requested player."""
         raise NotImplementedError
 
     @abstractmethod
-    def legal_actions(self, state: GameState) -> List[Action]:
-        """
-        Return the legal actions for the current player in the given state.
-        """
+    def legal_action_names_from_observation(self, observation: Dict[str, str]) -> List[str]:
+        """Return the legal action names for the given player observation."""
         raise NotImplementedError
 
     @abstractmethod
-    def legal_action_names_from_observation(self, observation: GameObservation) -> List[str]:
-        """
-        Return the legal external action names for a player-facing observation.
-        """
+    def step(self, state: Dict[str, Any], action_name: str) -> Dict[str, Any]:
+        """Apply one action and return the next game state."""
         raise NotImplementedError
 
     @abstractmethod
-    def action_to_name(self, player_index: int, action: Action) -> str:
-        """
-        Convert a domain Action into the external action-name representation.
-
-        ``player_index`` is required because action names are player-scoped:
-        two players performing the same action (e.g. both drawing a card) must
-        produce distinct names so that the behavioural-programming event bus can
-        tell them apart.  See the class docstring for the full name format.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def resolve_action_name(self, state: GameState, action_name: str) -> Action:
-        """
-        Resolve an agent-returned action name into a concrete domain Action.
-
-        The name must be one of the strings produced by action_to_name for the
-        current player and state (i.e. it should appear in
-        GameObservation.candidate_actions).  See the class docstring for the
-        full name format.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def step(self, state: GameState, action: Action) -> GameState:
-        """
-        Apply one action and return the next game state.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def is_terminal(self, state: GameState) -> bool:
-        """
-        Return True when the state is terminal.
-        """
+    def is_terminal(self, state: Dict[str, Any]) -> bool:
+        """Return True when the state is terminal."""
         raise NotImplementedError

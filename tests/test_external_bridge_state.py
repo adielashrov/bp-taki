@@ -2,11 +2,11 @@ import unittest
 
 from bppy.model.b_priority_event import BPEvent
 
-from bp_taki import (
+from python_taki_api.external_bridge_state import (
+    build_external_observation,
     init_external_bridge_state,
     update_external_bridge_state_from_event,
 )
-
 
 class TestExternalBridgeState(unittest.TestCase):
 
@@ -26,7 +26,7 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertIsNone(state["active_color"])
         self.assertIsNone(state["match_color"])
         self.assertIsNone(state["match_type"])
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
         self.assertIsNone(state["taki_color"])
         self.assertIsNone(state["taki_last_event"])
         self.assertIsNone(state["taki_last_color"])
@@ -43,7 +43,7 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["active_color"], "red")
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "3")
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
         self.assertIsNone(state["taki_color"])
 
     # ------------------------------------------------------------------
@@ -74,7 +74,7 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["active_color"], "blue")
         self.assertEqual(state["match_color"], "blue")
         self.assertEqual(state["match_type"], "5")
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
 
     # ------------------------------------------------------------------
     # stop card
@@ -102,14 +102,14 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["top_card"], "p_0_stop_red")
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "STOP")
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
 
         update_external_bridge_state_from_event(state, BPEvent("done_post_action"), 2)
         self.assertEqual(state["current_player"], 0)
         self.assertEqual(state["next_player"], 0)
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "STOP")
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
 
         update_external_bridge_state_from_event(state, BPEvent("next_turn"), 2)
         self.assertEqual(state["current_player"], 0)
@@ -127,7 +127,7 @@ class TestExternalBridgeState(unittest.TestCase):
         update_external_bridge_state_from_event(state, BPEvent("p_0_change_color"), 2)
         self.assertEqual(state["top_card"], "p_0_change_color")
         # rule_mode should not change until color is selected
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
 
         update_external_bridge_state_from_event(state, BPEvent("selected_blue"), 2)
         self.assertEqual(state["top_card"], "selected_blue")
@@ -168,7 +168,7 @@ class TestExternalBridgeState(unittest.TestCase):
 
         # done_post_action finalizes the TAKI sequence
         update_external_bridge_state_from_event(state, BPEvent("done_post_action"), 2)
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "5")
         self.assertEqual(state["top_card"], "p_0_card_5_red")
@@ -196,7 +196,7 @@ class TestExternalBridgeState(unittest.TestCase):
         # State should be unchanged
         self.assertEqual(state["match_color"], "blue")
         self.assertEqual(state["match_type"], "5")
-        self.assertEqual(state["rule_mode"], "color_or_type")
+        self.assertEqual(state["rule_mode"], "match_color_or_type")
 
     # ------------------------------------------------------------------
     # 3-player stop skip logic
