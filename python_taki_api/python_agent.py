@@ -1,3 +1,4 @@
+import random
 from typing import Dict, List, Optional
 from .taki_agent import TakiAgent
 
@@ -82,8 +83,9 @@ def _legal_cards(hand: List[str], state: Dict[str, str]) -> List[str]:
 
 
 class PythonAgent(TakiAgent):
-    def __init__(self):
+    def __init__(self, seed: Optional[int] = None):
         self.last_state: Optional[Dict[str, str]] = None
+        self._rng = random.Random(seed)
 
     def get_action(self, state: Dict[str, str]) -> Optional[str]:
         self.last_state = state
@@ -91,12 +93,12 @@ class PythonAgent(TakiAgent):
         hand = [name for name in state.get("hand", "").split(",") if name]
 
         if phase == "change_color":
-            return "selected_red"
+            return self._rng.choice(["selected_red", "selected_blue", "selected_green"])
 
         if phase == "taki_sequence":
             legal = _legal_cards(hand, state)
-            return legal[0] if legal else "closed_taki"
+            return self._rng.choice(legal) if legal else "closed_taki"
 
         # Normal turn
         legal = _legal_cards(hand, state)
-        return legal[0] if legal else "draw_card"
+        return self._rng.choice(legal) if legal else "draw_card"

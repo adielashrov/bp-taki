@@ -20,7 +20,7 @@ NUM_OF_PLAYERS = 2
 COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 2 # good seeds for change color: 2, 4, a bug in 5
+SEED = 42 # good seeds for change color: 2, 4, a bug in 5
 
 LOG_LEVEL = logging.INFO
 
@@ -663,7 +663,7 @@ def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_pl
     Bridge between the BP TAKI runtime and a Python policy with a Gym-like
     observation -> action loop.
     """
-    python_agent = PythonAgent()
+    python_agent = PythonAgent(seed=SEED)
     state = init_external_bridge_state(index, starting_player, num_of_players)
 
     yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
