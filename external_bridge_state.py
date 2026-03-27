@@ -120,7 +120,10 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
         state["next_player"] = (state["next_player"] + 1) % num_of_players
         return
 
-    if event.name.startswith(f"p_{state['current_player']}_stop"):
+    if (
+        state["rule_mode"] != "taki"
+        and event.name.startswith(f"p_{state['current_player']}_stop")
+    ):
         state["next_player"] = (state["next_player"] + 1) % num_of_players
 
     if event.name.startswith("leading_"):
