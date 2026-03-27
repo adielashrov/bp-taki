@@ -2,7 +2,7 @@ import unittest
 
 from bppy.model.b_priority_event import BPEvent
 
-from python_taki_api.external_bridge_state import (
+from external_bridge_state import (
     build_external_observation,
     init_external_bridge_state,
     update_external_bridge_state_from_event,

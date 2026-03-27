@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
 from python_taki_api.python_agent import PythonAgent
-from python_taki_api.external_bridge_state import (
+from external_bridge_state import (
     build_external_observation,
     init_external_bridge_state,
     update_external_bridge_state_from_event,
