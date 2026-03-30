@@ -36,7 +36,7 @@ logger.info(f"Random seed for card dealing: {SEED}")
 leading_card_event_set = bp.EventSet(lambda e: e.name.startswith('leading_'))
 
 # TODO: document this important event set
-pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|stop_\w+|change_color|taki_\w+|super_taki_\w+|closed_taki|no_more_cards)|end_game)$"
+pattern = r"^(p_\d+_(draw_card|card_\d+_\w+|stop_\w+|change_color|taki_\w+|super_taki|closed_taki|no_more_cards)|end_game)$"
 general_player_event_set = bp.EventSet(
     lambda e: hasattr(e, "name") and re.match(pattern, e.name) is not None
 )
