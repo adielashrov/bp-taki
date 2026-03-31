@@ -504,7 +504,6 @@ def create_simulation_bprogram(
     bthreads = [
         game_manager(),
         deal_cards(2, num_cards, actual_starting_player),
-        player_behavior(1, num_cards),  # Always include base player behavior
         player_behavior(0, num_cards),  # Always include base player behavior
         player_behavior(1, num_cards),  # Always include base player behavior
         enforce_turns(2, actual_starting_player),  # Use positional argument (keyword args don't work with @bp.thread decorator)
@@ -798,7 +797,7 @@ if __name__ == "__main__":
     stats = run_simulation(
         num_games=100,
         start_seed=0,
-        starting_player=1,
+        starting_player=-1,
         player_0_strategy=player_0_strategy,
         player_1_strategy=player_1_strategy,
         silent=False,
