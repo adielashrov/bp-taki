@@ -392,6 +392,15 @@ def is_deal_regular_card_event(event: BPEvent) -> bool:
         return True
     return False
 
+
+def create_regular_leading_card_events():
+    """Create the pool of regular numbered cards that may be used as a leading card."""
+    return [
+        deal_event
+        for deal_event in create_deal_events(init_cards_events())
+        if is_deal_regular_card_event(deal_event)
+    ]
+
 @bp.thread
 def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
     """
@@ -443,9 +452,16 @@ def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
     # Filter to only regular numbered cards
     regular_cards = [card for card in deal_cards_events
                      if is_deal_regular_card_event(card)]
+    if not regular_cards:
+        logger.debug(
+            "[DEAL_CARDS] No regular cards left for the leading card after initial deal. "
+            "Falling back to a fresh regular leading-card pool."
+        )
+        regular_cards = create_regular_leading_card_events()
     # We want that the leading card will be a regular card.
     last_event = yield bp.sync(request=regular_cards)  # possible pattern here?
-    deal_cards_events.remove(last_event)
+    if last_event in deal_cards_events:
+        deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent(f"leading_{last_event.name}", priority=10.0))
     yield bp.sync(request=BPEvent("finished_leading_card", priority=10.0))
 
