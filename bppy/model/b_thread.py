@@ -23,7 +23,10 @@ def thread(func, mode='execution'):
                         warn("using dict for statements is deprecated, use bppy.model.sync_statement.sync instead.")
                         e = sync(**e)
                     if isinstance(e, sync):
-                        local_vars = {var:val for var, val in copy(f.gi_frame.f_locals).items()}
+                        # Python 3.13 exposes frame locals via FrameLocalsProxy, which
+                        # is dict-like but not copy/pickle-compatible. Materialize it
+                        # into a plain dict before attaching locals to the sync object.
+                        local_vars = dict(f.gi_frame.f_locals)
                         e["locals"] = copy(local_vars)
                         m = yield e
                         if m is None:
@@ -45,5 +48,4 @@ def thread(func, mode='execution'):
 def b_thread(func):
     warn("the b_thread decorator is deprecated, use thread instead.")
     return thread(func)
-
 
