@@ -20,7 +20,7 @@ NUM_OF_PLAYERS = 2
 COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 42 # good seeds for change color: 2, 4, a bug in 5
+SEED = 136 # good seeds for change color: 2, 4, a bug in 5
 
 LOG_LEVEL = logging.INFO
 
@@ -1177,8 +1177,10 @@ def enforce_turns(num_of_players=2, starting_player=0):
         if last_event.name.startswith(f"p_{current_player}_stop"): # stop_card
             next_player = (next_player + 1) % num_of_players
             logger.debug(f"[ENFORCE_TURNS] Stop card played by Player {current_player}, next player is: {next_player}")
-            yield bp.sync(request=BPEvent("done_post_action", priority=10.0),
-                                   block=all_other_player_cards_besides_special_cards(current_player))
+            yield bp.sync(
+                request=BPEvent("done_post_action", priority=10.0),
+                block=general_player_event_set,
+            )
 
         if is_any_taki_event(last_event):# Super TAKI or TAKI played
             taki_type = "Regular TAKI" if is_taki_card_event(last_event) else "Super TAKI"
@@ -1233,7 +1235,10 @@ def enforce_card_placement_rules():
             selected_color_event = yield bp.sync(waitFor=selected_color_events)
             card_color, _ = extract_card_color_and_type(event=selected_color_event)
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
-            yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+            yield bp.sync(
+                request=BPEvent("done_post_action", priority=10.0),
+                block=general_player_event_set,
+            )
 
         elif is_stop_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
@@ -1498,24 +1503,21 @@ def setup_logger():
 
 
 def init_b_program(starting_player=1):
-    
     enable_tests = True
 
-    # Core game threads
     game_threads = [
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        # player_behavior(1, NUM_OF_CARDS),
-        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS), # Use the external version of player 1 to allow more flexible strategies
+        player_behavior(1, NUM_OF_CARDS),
+        basic_strategy_taki(0, NUM_OF_CARDS),
         enforce_turns(2, starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
         identify_livelock(),
-        verify_turn_alternation()
+        verify_turn_alternation(),
     ]
-    
-    # Regression test threads
+
     test_threads = []
     if enable_tests:
         test_threads = [
@@ -1523,14 +1525,14 @@ def init_b_program(starting_player=1):
             test_first_card_matches_leading_card(),
             test_no_game_events_before_start(),
             test_no_game_events_after_end(),
-            test_no_more_cards_before_end_game()
+            test_no_more_cards_before_end_game(),
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
-    
+
     b_program = bp.BProgram(
         bthreads=game_threads + test_threads,
         event_selection_strategy=EventPrioritySelectionStrategy(),
-        listener=LogBProgramRunnerListener(logger=logger)
+        listener=LogBProgramRunnerListener(logger=logger),
     )
 
     return b_program
