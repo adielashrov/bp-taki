@@ -1030,9 +1030,8 @@ def save_results(stats: SimulationStats, filename: str = None, player_0_strategy
     print(f"\nResults saved to: {filename}")
 
 
-if __name__ == "__main__":
-
-
+def run_bp_vs_bp_simulation():
+    
     player_0_strategy = "basic"
     player_1_strategy = "basic"
 
@@ -1061,3 +1060,37 @@ if __name__ == "__main__":
     # Save results
     json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
+
+def run_bp_vs_external_player_simulation():
+
+    player_0_strategy = "basic"
+    player_1_strategy = "external"
+
+    stats = run_simulation_basic_vs_external(
+        num_games=1000,
+        start_seed=0,
+        starting_player=-1,
+        player_0_strategy=player_0_strategy,
+        silent=False,
+        progress_interval=500,
+    )
+
+    # Print summary
+    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
+    print("\n" + summary_text)
+
+    # Save summary to file with timestamp
+    timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
+    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
+    with open(summary_filename, 'w') as f:
+        f.write(summary_text)
+    print(f"Summary saved to: {summary_filename}")
+
+    # Save results
+    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
+    save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
+
+if __name__ == "__main__":
+    run_bp_vs_external_player_simulation()
+
+    
