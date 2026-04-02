@@ -1037,13 +1037,13 @@ def run_bp_vs_bp_simulation():
 
 
     stats = run_simulation(
-        num_games=1000,
+        num_games=5000,
         start_seed=0,
         starting_player=-1,
         player_0_strategy=player_0_strategy,
         player_1_strategy=player_1_strategy,
         silent=False,
-        progress_interval=5
+        progress_interval=200
     )
     
     # Print summary
@@ -1067,12 +1067,12 @@ def run_bp_vs_external_player_simulation():
     player_1_strategy = "external"
 
     stats = run_simulation_basic_vs_external(
-        num_games=1000,
+        num_games=5000,
         start_seed=0,
         starting_player=-1,
         player_0_strategy=player_0_strategy,
         silent=False,
-        progress_interval=500,
+        progress_interval=200,
     )
 
     # Print summary
@@ -1091,6 +1091,7 @@ def run_bp_vs_external_player_simulation():
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 if __name__ == "__main__":
+    # run_bp_vs_bp_simulation()
     run_bp_vs_external_player_simulation()
 
     
