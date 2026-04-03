@@ -538,6 +538,30 @@ def is_super_taki_event(e):
 
 
 
+def create_player_controller(index, num_of_cards=2, strategy="basic"):
+    """
+    Create a base player controller b-thread.
+
+    Strategy-specific behavior threads (like basic_strategy_taki) should be added
+    separately as additional b-threads to the BProgram.
+
+    Parameters
+    ----------
+    index : int
+        Player index (0 or 1)
+    num_of_cards : int
+        Number of cards per player
+    strategy : str
+        Strategy name - currently unused as strategy is applied via additional b-threads.
+        Present for API compatibility.
+
+    Returns
+    -------
+    b-thread
+        Base player behavior b-thread
+    """
+    return player_behavior(index, num_of_cards)
+
 
 @bp.thread
 def player_behavior(index, num_of_cards=2):
