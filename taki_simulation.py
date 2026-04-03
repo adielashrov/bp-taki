@@ -24,6 +24,7 @@ from bp_taki import (
     player_behavior_external,
     basic_strategy_taki,
     basic_strategy_taki_and_super_taki,
+    block_next_turn_during_open_taki,
     strategy_block_super_taki_during_regular_taki,
     enforce_turns,
     enforce_card_placement_rules,
@@ -575,6 +576,8 @@ def create_simulation_bprogram(
         deal_cards(2, num_cards, actual_starting_player),
         player_behavior(0, num_cards),  # Always include base player behavior
         player_behavior(1, num_cards),  # Always include base player behavior
+        block_next_turn_during_open_taki(0),
+        block_next_turn_during_open_taki(1),
         enforce_turns(2, actual_starting_player),  # Use positional argument (keyword args don't work with @bp.thread decorator)
         enforce_card_placement_rules(),
         identify_deadlock(),
@@ -663,6 +666,8 @@ def create_simulation_bprogram_basic_vs_external(
         deal_cards(NUM_OF_PLAYERS, num_cards, actual_starting_player),
         player_behavior(0, num_cards),
         player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS),
+        block_next_turn_during_open_taki(0),
+        # block_next_turn_during_open_taki(1), not sure if this guard is necassery
         enforce_turns(NUM_OF_PLAYERS, actual_starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
@@ -1169,7 +1174,7 @@ def run_bp_vs_bp_simulation():
 
 def run_bp_vs_external_player_simulation():
 
-    num_seed_pairs = 5000
+    num_seed_pairs = 500
     player_0_strategy = "taki"
     player_1_strategy = "external"
 
@@ -1177,7 +1182,8 @@ def run_bp_vs_external_player_simulation():
         num_games=num_seed_pairs,
         start_seed=0,
         starting_player=-1,
-        mirrored_starting_players=True,
+        balanced_starting_players=True,
+        mirrored_starting_players=False,
         player_0_strategy=player_0_strategy,
         silent=False,
         progress_interval=500,
@@ -1199,7 +1205,7 @@ def run_bp_vs_external_player_simulation():
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 if __name__ == "__main__":
-    run_bp_vs_bp_simulation()
-    # run_bp_vs_external_player_simulation()
+    # run_bp_vs_bp_simulation()
+    run_bp_vs_external_player_simulation()
 
     
