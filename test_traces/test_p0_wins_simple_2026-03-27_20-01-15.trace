@@ -1,0 +1,17 @@
+# Test: test_p0_wins_simple
+# Timestamp: 2026-03-27_20-01-15
+# -------------------------
+start_dealing_cards_to_players
+deal_cards_to_player_0
+deal_p_card_5_red
+deal_cards_to_player_1
+deal_p_card_7_blue
+finished_dealing_cards_to_players
+deal_leading_card
+deal_p_card_1_red
+leading_deal_p_card_1_red
+finished_leading_card
+start_game
+p_0_card_5_red
+p_0_no_more_cards
+end_game
