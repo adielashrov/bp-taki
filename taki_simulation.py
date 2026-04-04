@@ -1143,7 +1143,7 @@ def save_results(stats: SimulationStats, filename: str = None, player_0_strategy
 def run_bp_vs_bp_simulation():
     num_seed_pairs = 5000
     player_0_strategy = "taki"
-    player_1_strategy = "taki"
+    player_1_strategy = "basic"
 
     stats = run_simulation(
         num_games=num_seed_pairs,
@@ -1174,7 +1174,7 @@ def run_bp_vs_bp_simulation():
 
 def run_bp_vs_external_player_simulation():
 
-    num_seed_pairs = 500
+    num_seed_pairs = 5000
     player_0_strategy = "taki"
     player_1_strategy = "external"
 
