@@ -48,6 +48,20 @@ def _is_external_hand_card_event(event: BPEvent) -> bool:
     return _is_regular_card_event(event) or _is_action_card_event(event)
 
 
+def _is_deal_card_event(event: BPEvent) -> bool:
+    return event.name.startswith("deal_p_")
+
+
+def _deal_target_player_id(event: BPEvent) -> Optional[int]:
+    match = re.match(r"^deal_cards_to_player_(\d+)$", event.name)
+    return int(match.group(1)) if match else None
+
+
+def _played_card_owner(event: BPEvent) -> Optional[int]:
+    match = re.match(r"^p_(\d+)_", event.name)
+    return int(match.group(1)) if match else None
+
+
 def _extract_card_color_and_type(event: BPEvent) -> Union[tuple, tuple]:
     card_str_index = event.name.find("card")
     if card_str_index != -1:
@@ -93,6 +107,26 @@ def _card_event_name_to_descriptor(event_name: Optional[str]) -> Optional[str]:
     return name
 
 
+def _update_top_card_fields(
+    state: Dict[str, Any],
+    event_name: Optional[str],
+    color: Optional[str],
+    card_type: Optional[str],
+) -> None:
+    state["top_card"] = event_name
+    state["top_card_color"] = color
+    state["top_card_type"] = card_type
+
+
+def _update_opponent_card_count(state: Dict[str, Any], num_of_players: int) -> None:
+    if num_of_players == 2:
+        player_index = state["player_index"]
+        opponent_index = 1 - player_index
+        state["opponent_card_count"] = state["hand_counts"].get(opponent_index, 0)
+    else:
+        state["opponent_card_count"] = None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -103,6 +137,8 @@ def init_external_bridge_state(index: int, starting_player: int, num_of_players:
         "current_player": starting_player,
         "next_player": (starting_player + 1) % num_of_players,
         "top_card": None,
+        "top_card_color": None,
+        "top_card_type": None,
         "active_color": None,
         "match_color": None,
         "match_type": None,
@@ -111,10 +147,27 @@ def init_external_bridge_state(index: int, starting_player: int, num_of_players:
         "taki_last_event": None,
         "taki_last_color": None,
         "taki_last_type": None,
+        "pending_deal_player": None,
+        "hand_counts": {player: 0 for player in range(num_of_players)},
+        "opponent_card_count": 0 if num_of_players == 2 else None,
     }
 
 
 def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEvent, num_of_players: int) -> None:
+    pending_deal_player = state.get("pending_deal_player")
+
+    deal_target_player = _deal_target_player_id(event)
+    if deal_target_player is not None:
+        state["pending_deal_player"] = deal_target_player
+        return
+
+    if _is_deal_card_event(event):
+        if pending_deal_player is not None:
+            state["hand_counts"][pending_deal_player] = state["hand_counts"].get(pending_deal_player, 0) + 1
+            _update_opponent_card_count(state, num_of_players)
+        state["pending_deal_player"] = None
+        return
+
     if event.name == "next_turn":
         state["current_player"] = state["next_player"]
         state["next_player"] = (state["next_player"] + 1) % num_of_players
@@ -128,7 +181,7 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
 
     if event.name.startswith("leading_"):
         card_color, card_type = _extract_card_color_and_type(event)
-        state["top_card"] = event.name
+        _update_top_card_fields(state, event.name, card_color, card_type)
         state["active_color"] = card_color
         state["match_color"] = card_color
         state["match_type"] = card_type
@@ -141,7 +194,7 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
 
     if _is_selected_color_event(event):
         selected_color, _ = _extract_card_color_and_type(event)
-        state["top_card"] = event.name
+        _update_top_card_fields(state, event.name, selected_color, "CHANGE_COLOR")
         state["active_color"] = selected_color
         state["match_color"] = selected_color
         state["match_type"] = "CHANGE_COLOR"
@@ -149,18 +202,22 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
         return
 
     if _is_any_taki_event(event):
-        state["top_card"] = event.name
         state["rule_mode"] = "taki"
         if _is_taki_card_event(event):
             taki_color, taki_type = _extract_card_color_and_type(event)
         else:
             taki_color = state["active_color"]
             taki_type = "SUPER_TAKI"
+        _update_top_card_fields(state, event.name, taki_color, taki_type)
         state["active_color"] = taki_color
         state["taki_color"] = taki_color
         state["taki_last_event"] = event.name
         state["taki_last_color"] = taki_color
         state["taki_last_type"] = taki_type
+        owner = _played_card_owner(event)
+        if owner is not None:
+            state["hand_counts"][owner] = max(0, state["hand_counts"].get(owner, 0) - 1)
+            _update_opponent_card_count(state, num_of_players)
         return
 
     if event.name.endswith("_closed_taki"):
@@ -173,7 +230,12 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
             state["match_type"] = state["taki_last_type"]
             state["active_color"] = state["match_color"]
             if state["taki_last_event"] is not None:
-                state["top_card"] = state["taki_last_event"]
+                _update_top_card_fields(
+                    state,
+                    state["taki_last_event"],
+                    state["taki_last_color"],
+                    state["taki_last_type"],
+                )
             state["taki_color"] = None
             state["taki_last_event"] = None
             state["taki_last_color"] = None
@@ -182,7 +244,7 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
 
     if _is_regular_card_event(event) or _is_stop_card_event(event):
         card_color, card_type = _extract_card_color_and_type(event)
-        state["top_card"] = event.name
+        _update_top_card_fields(state, event.name, card_color, card_type)
         state["active_color"] = card_color
         if state["rule_mode"] == "taki":
             state["taki_last_event"] = event.name
@@ -192,14 +254,29 @@ def update_external_bridge_state_from_event(state: Dict[str, Any], event: BPEven
             state["match_color"] = card_color
             state["match_type"] = card_type
             state["rule_mode"] = "match_color_or_type"
+        owner = _played_card_owner(event)
+        if owner is not None:
+            state["hand_counts"][owner] = max(0, state["hand_counts"].get(owner, 0) - 1)
+            _update_opponent_card_count(state, num_of_players)
         return
 
     if _is_change_color_event(event):
-        state["top_card"] = event.name
+        _update_top_card_fields(state, event.name, state["active_color"], "CHANGE_COLOR")
         if state["rule_mode"] == "taki":
             state["taki_last_event"] = event.name
             state["taki_last_color"] = state["active_color"]
             state["taki_last_type"] = "CHANGE_COLOR"
+        owner = _played_card_owner(event)
+        if owner is not None:
+            state["hand_counts"][owner] = max(0, state["hand_counts"].get(owner, 0) - 1)
+            _update_opponent_card_count(state, num_of_players)
+        return
+
+    if event.name.endswith("_no_more_cards"):
+        owner = _played_card_owner(event)
+        if owner is not None:
+            state["hand_counts"][owner] = 0
+            _update_opponent_card_count(state, num_of_players)
         return
 
 
@@ -219,7 +296,10 @@ def build_external_observation(
         "phase":         phase,
         "hand":          hand,
         "top_card":      _card_event_name_to_descriptor(state.get("top_card")) or "",
+        "top_card_color": state.get("top_card_color") or "",
+        "top_card_type": state.get("top_card_type") or "",
         "active_color":  state.get("active_color") or "",
         "rule_mode":     state.get("rule_mode") or "",
         "taki_color":    state.get("taki_color") or "",
+        "opponent_card_count": str(state.get("opponent_card_count", "")),
     }

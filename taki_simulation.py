@@ -24,6 +24,8 @@ from bp_taki import (
     player_behavior_external,
     basic_strategy_taki,
     basic_strategy_taki_and_super_taki,
+    optimal_strategy,
+    optimal_change_color_strategy,
     block_next_turn_during_open_taki,
     strategy_block_super_taki_during_regular_taki,
     enforce_turns,
@@ -538,9 +540,9 @@ def create_simulation_bprogram(
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
         Cards are dealt to the starting player first to ensure fairness.
     player_0_strategy : str
-        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "optimal"
     player_1_strategy : str
-        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "optimal"
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
@@ -590,6 +592,9 @@ def create_simulation_bprogram(
         bthreads.append(basic_strategy_taki(0, num_cards))
     elif player_0_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy == "optimal":
+        bthreads.append(optimal_strategy(0, num_cards, actual_starting_player, NUM_OF_PLAYERS))
+        bthreads.append(optimal_change_color_strategy(0, num_cards, actual_starting_player, NUM_OF_PLAYERS))
     elif player_0_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
     
@@ -602,6 +607,9 @@ def create_simulation_bprogram(
         bthreads.append(basic_strategy_taki(1, num_cards))
     elif player_1_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(1, num_cards))
+    elif player_1_strategy == "optimal":
+        bthreads.append(optimal_strategy(1, num_cards, actual_starting_player, NUM_OF_PLAYERS))
+        bthreads.append(optimal_change_color_strategy(1, num_cards, actual_starting_player, NUM_OF_PLAYERS))
     elif player_1_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 1: {player_1_strategy}")
     
@@ -642,7 +650,7 @@ def create_simulation_bprogram_basic_vs_external(
     starting_player : int
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
     player_0_strategy : str
-        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
+        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki", "optimal".
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
 
@@ -679,6 +687,9 @@ def create_simulation_bprogram_basic_vs_external(
         bthreads.append(basic_strategy_taki(0, num_cards))
     elif player_0_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy == "optimal":
+        bthreads.append(optimal_strategy(0, num_cards, actual_starting_player, NUM_OF_PLAYERS))
+        bthreads.append(optimal_change_color_strategy(0, num_cards, actual_starting_player, NUM_OF_PLAYERS))
     elif player_0_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
 
@@ -1141,9 +1152,9 @@ def save_results(stats: SimulationStats, filename: str = None, player_0_strategy
 
 
 def run_bp_vs_bp_simulation():
-    num_seed_pairs = 5000
-    player_0_strategy = "taki"
-    player_1_strategy = "basic"
+    num_seed_pairs = 10000
+    player_0_strategy = "optimal"
+    player_1_strategy = "taki_and_super_taki"
 
     stats = run_simulation(
         num_games=num_seed_pairs,
@@ -1205,7 +1216,7 @@ def run_bp_vs_external_player_simulation():
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 if __name__ == "__main__":
-    # run_bp_vs_bp_simulation()
-    run_bp_vs_external_player_simulation()
+    run_bp_vs_bp_simulation()
+    # run_bp_vs_external_player_simulation()
 
     

@@ -23,6 +23,8 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["current_player"], 0)
         self.assertEqual(state["next_player"], 1)
         self.assertIsNone(state["top_card"])
+        self.assertIsNone(state["top_card_color"])
+        self.assertIsNone(state["top_card_type"])
         self.assertIsNone(state["active_color"])
         self.assertIsNone(state["match_color"])
         self.assertIsNone(state["match_type"])
@@ -31,6 +33,26 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertIsNone(state["taki_last_event"])
         self.assertIsNone(state["taki_last_color"])
         self.assertIsNone(state["taki_last_type"])
+        self.assertIsNone(state["pending_deal_player"])
+        self.assertEqual(state["hand_counts"], {0: 0, 1: 0})
+        self.assertEqual(state["opponent_card_count"], 0)
+
+    def test_deal_events_track_hand_counts_and_pending_target(self):
+        state = self._make_state(index=1, starting_player=0, num_of_players=2)
+
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        self.assertEqual(state["pending_deal_player"], 0)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_card_3_red"), 2)
+        self.assertIsNone(state["pending_deal_player"])
+        self.assertEqual(state["hand_counts"], {0: 1, 1: 0})
+        self.assertEqual(state["opponent_card_count"], 1)
+
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_1"), 2)
+        self.assertEqual(state["pending_deal_player"], 1)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_stop_blue"), 2)
+        self.assertIsNone(state["pending_deal_player"])
+        self.assertEqual(state["hand_counts"], {0: 1, 1: 1})
+        self.assertEqual(state["opponent_card_count"], 1)
 
     # ------------------------------------------------------------------
     # leading card
@@ -40,6 +62,8 @@ class TestExternalBridgeState(unittest.TestCase):
         state = self._make_state()
         update_external_bridge_state_from_event(state, BPEvent("leading_deal_p_card_3_red"), 2)
         self.assertEqual(state["top_card"], "leading_deal_p_card_3_red")
+        self.assertEqual(state["top_card_color"], "red")
+        self.assertEqual(state["top_card_type"], "3")
         self.assertEqual(state["active_color"], "red")
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "3")
@@ -68,13 +92,18 @@ class TestExternalBridgeState(unittest.TestCase):
 
     def test_regular_card_updates_match_state(self):
         state = self._make_state()
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_card_5_blue"), 2)
         update_external_bridge_state_from_event(state, BPEvent("leading_deal_p_card_3_red"), 2)
         update_external_bridge_state_from_event(state, BPEvent("p_0_card_5_blue"), 2)
         self.assertEqual(state["top_card"], "p_0_card_5_blue")
+        self.assertEqual(state["top_card_color"], "blue")
+        self.assertEqual(state["top_card_type"], "5")
         self.assertEqual(state["active_color"], "blue")
         self.assertEqual(state["match_color"], "blue")
         self.assertEqual(state["match_type"], "5")
         self.assertEqual(state["rule_mode"], "match_color_or_type")
+        self.assertEqual(state["hand_counts"][0], 0)
 
     # ------------------------------------------------------------------
     # stop card
@@ -100,6 +129,8 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["current_player"], 0)
         self.assertEqual(state["next_player"], 0)
         self.assertEqual(state["top_card"], "p_0_stop_red")
+        self.assertEqual(state["top_card_color"], "red")
+        self.assertEqual(state["top_card_type"], "STOP")
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "STOP")
         self.assertEqual(state["rule_mode"], "match_color_or_type")
@@ -126,11 +157,14 @@ class TestExternalBridgeState(unittest.TestCase):
         update_external_bridge_state_from_event(state, BPEvent("leading_deal_p_card_3_red"), 2)
         update_external_bridge_state_from_event(state, BPEvent("p_0_change_color"), 2)
         self.assertEqual(state["top_card"], "p_0_change_color")
+        self.assertEqual(state["top_card_type"], "CHANGE_COLOR")
         # rule_mode should not change until color is selected
         self.assertEqual(state["rule_mode"], "match_color_or_type")
 
         update_external_bridge_state_from_event(state, BPEvent("selected_blue"), 2)
         self.assertEqual(state["top_card"], "selected_blue")
+        self.assertEqual(state["top_card_color"], "blue")
+        self.assertEqual(state["top_card_type"], "CHANGE_COLOR")
         self.assertEqual(state["active_color"], "blue")
         self.assertEqual(state["match_color"], "blue")
         self.assertEqual(state["match_type"], "CHANGE_COLOR")
@@ -142,18 +176,27 @@ class TestExternalBridgeState(unittest.TestCase):
 
     def test_taki_sequence_with_cards_then_close(self):
         state = self._make_state()
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_taki_red"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_card_5_red"), 2)
         update_external_bridge_state_from_event(state, BPEvent("leading_deal_p_card_3_red"), 2)
 
         # Player 0 plays TAKI red
         update_external_bridge_state_from_event(state, BPEvent("p_0_taki_red"), 2)
         self.assertEqual(state["top_card"], "p_0_taki_red")
+        self.assertEqual(state["top_card_color"], "red")
+        self.assertEqual(state["top_card_type"], "TAKI")
         self.assertEqual(state["rule_mode"], "taki")
         self.assertEqual(state["taki_color"], "red")
         self.assertEqual(state["active_color"], "red")
+        self.assertEqual(state["hand_counts"][0], 1)
 
         # Player 0 plays card_5_red inside the TAKI sequence
         update_external_bridge_state_from_event(state, BPEvent("p_0_card_5_red"), 2)
         self.assertEqual(state["top_card"], "p_0_card_5_red")
+        self.assertEqual(state["top_card_color"], "red")
+        self.assertEqual(state["top_card_type"], "5")
         self.assertEqual(state["rule_mode"], "taki")
         self.assertEqual(state["taki_last_event"], "p_0_card_5_red")
         self.assertEqual(state["taki_last_color"], "red")
@@ -172,21 +215,29 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["match_color"], "red")
         self.assertEqual(state["match_type"], "5")
         self.assertEqual(state["top_card"], "p_0_card_5_red")
+        self.assertEqual(state["top_card_color"], "red")
+        self.assertEqual(state["top_card_type"], "5")
         self.assertIsNone(state["taki_color"])
         self.assertIsNone(state["taki_last_event"])
         self.assertIsNone(state["taki_last_color"])
         self.assertIsNone(state["taki_last_type"])
+        self.assertEqual(state["hand_counts"][0], 0)
 
     def test_super_taki_sequence(self):
         state = self._make_state()
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_super_taki"), 2)
         update_external_bridge_state_from_event(state, BPEvent("leading_deal_p_card_3_blue"), 2)
 
         update_external_bridge_state_from_event(state, BPEvent("p_0_super_taki"), 2)
         self.assertEqual(state["top_card"], "p_0_super_taki")
+        self.assertEqual(state["top_card_color"], "blue")
+        self.assertEqual(state["top_card_type"], "SUPER_TAKI")
         self.assertEqual(state["rule_mode"], "taki")
         self.assertEqual(state["taki_last_type"], "SUPER_TAKI")
         # super_taki inherits the current active_color
         self.assertEqual(state["taki_color"], "blue")
+        self.assertEqual(state["hand_counts"][0], 0)
 
     def test_done_post_action_no_op_outside_taki(self):
         state = self._make_state()
@@ -197,6 +248,27 @@ class TestExternalBridgeState(unittest.TestCase):
         self.assertEqual(state["match_color"], "blue")
         self.assertEqual(state["match_type"], "5")
         self.assertEqual(state["rule_mode"], "match_color_or_type")
+
+    def test_draw_and_no_more_cards_update_hand_counts(self):
+        state = self._make_state(index=0, starting_player=0, num_of_players=2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_card_3_red"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_1"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_card_1_blue"), 2)
+        self.assertEqual(state["hand_counts"], {0: 1, 1: 1})
+        self.assertEqual(state["opponent_card_count"], 1)
+
+        update_external_bridge_state_from_event(state, BPEvent("p_0_draw_card"), 2)
+        self.assertEqual(state["hand_counts"], {0: 1, 1: 1})
+
+        update_external_bridge_state_from_event(state, BPEvent("deal_cards_to_player_0"), 2)
+        update_external_bridge_state_from_event(state, BPEvent("deal_p_stop_red"), 2)
+        self.assertEqual(state["hand_counts"], {0: 2, 1: 1})
+        self.assertEqual(state["opponent_card_count"], 1)
+
+        update_external_bridge_state_from_event(state, BPEvent("p_1_no_more_cards"), 2)
+        self.assertEqual(state["hand_counts"], {0: 2, 1: 0})
+        self.assertEqual(state["opponent_card_count"], 0)
 
     # ------------------------------------------------------------------
     # 3-player stop skip logic

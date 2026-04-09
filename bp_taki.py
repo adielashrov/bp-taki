@@ -789,6 +789,334 @@ def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_pl
         update_external_bridge_state_from_event(state, observed_next_turn, num_of_players)
 
 
+def _remove_first_matching_event(card_events: list[BPEvent], target_name: str) -> None:
+    for i, event in enumerate(card_events):
+        if event.name == target_name:
+            del card_events[i]
+            return
+    raise ValueError(f"Card event '{target_name}' not found in hand")
+
+
+def _remove_one_event_from_list(card_events: list[BPEvent], target_name: str) -> list[BPEvent]:
+    updated_events = []
+    removed = False
+    for event in card_events:
+        if not removed and event.name == target_name:
+            removed = True
+            continue
+        updated_events.append(event)
+    return updated_events
+
+
+def _actual_hand_events(card_events: list[BPEvent]) -> list[BPEvent]:
+    return [event for event in card_events if is_external_hand_card_event(event)]
+
+
+def _count_actual_hand_events(card_events: list[BPEvent]) -> int:
+    return len(_actual_hand_events(card_events))
+
+
+def _color_cluster_size(card_events: list[BPEvent], color: Optional[str]) -> int:
+    if color not in COLORS:
+        return 0
+    return sum(1 for event in _actual_hand_events(card_events) if extract_card_color_and_type(event)[0] == color)
+
+
+def _largest_color_cluster(card_events: list[BPEvent]) -> int:
+    return max((_color_cluster_size(card_events, color) for color in COLORS), default=0)
+
+
+def _count_same_type_support(card_events: list[BPEvent], card_type: Optional[str]) -> int:
+    if not card_type:
+        return 0
+    return sum(1 for event in _actual_hand_events(card_events) if extract_card_color_and_type(event)[1] == card_type)
+
+
+def _has_immediate_empty_hand_line(remaining_hand: list[BPEvent]) -> bool:
+    return _count_actual_hand_events(remaining_hand) == 0
+
+
+def _is_legal_turn_candidate(event: BPEvent, state: Dict[str, Any]) -> bool:
+    if is_super_taki_event(event) or is_change_color_event(event):
+        return True
+
+    color, card_type = extract_card_color_and_type(event)
+    active_color = state.get("top_card_color") or state.get("active_color")
+    top_type = state.get("top_card_type") or state.get("match_type")
+    rule_mode = state.get("rule_mode", "match_color_or_type")
+
+    if rule_mode == "taki":
+        taki_color = state.get("taki_color") or active_color
+        if is_change_color_event(event):
+            return False
+        if is_super_taki_event(event):
+            return True
+        return bool(color and taki_color and color == taki_color)
+
+    if color and active_color and color == active_color:
+        return True
+
+    if rule_mode == "color_only":
+        return False
+
+    return bool(top_type and card_type == top_type)
+
+
+def _count_legal_non_wild_options(card_events: list[BPEvent], state: Dict[str, Any]) -> int:
+    return sum(
+        1
+        for event in _actual_hand_events(card_events)
+        if _is_legal_turn_candidate(event, state)
+        and not is_change_color_event(event)
+        and not is_super_taki_event(event)
+    )
+
+
+def _same_color_followups(card_events: list[BPEvent], color: Optional[str]) -> int:
+    if color not in COLORS:
+        return 0
+    return sum(1 for event in _actual_hand_events(card_events) if extract_card_color_and_type(event)[0] == color)
+
+
+def _regular_support_value(card_events: list[BPEvent], event: BPEvent) -> int:
+    color, card_type = extract_card_color_and_type(event)
+    color_support = _same_color_followups(card_events, color)
+    type_support = _count_same_type_support(card_events, card_type)
+    return color_support + type_support
+
+
+def _choose_optimal_turn_priority(event: BPEvent, remaining_hand: list[BPEvent], state: Dict[str, Any]) -> float:
+    opponent_card_count = state.get("opponent_card_count")
+    strong_pressure = opponent_card_count is not None and opponent_card_count <= 2
+    lethal_pressure = opponent_card_count == 1
+
+    if _has_immediate_empty_hand_line(remaining_hand):
+        return 4.0
+
+    if is_taki_card_event(event):
+        color, _ = extract_card_color_and_type(event)
+        same_color_followups = _same_color_followups(remaining_hand, color)
+        if same_color_followups >= 2:
+            return 4.5
+        if same_color_followups >= 1:
+            return 7.5
+        return 9.5
+
+    if is_stop_card_event(event):
+        color, _ = extract_card_color_and_type(event)
+        same_color_followups = _same_color_followups(remaining_hand, color)
+        if strong_pressure or same_color_followups >= 1:
+            return 5.0 if not lethal_pressure else 4.75
+        return 7.5
+
+    if is_super_taki_event(event):
+        active_color = state.get("top_card_color") or state.get("active_color")
+        active_cluster = _color_cluster_size(remaining_hand, active_color)
+        best_cluster = _largest_color_cluster(remaining_hand)
+        if active_cluster >= 2 and active_cluster == best_cluster:
+            return 5.5
+        if active_cluster >= 1 and active_cluster == best_cluster:
+            return 7.5
+        return 11.0
+
+    if is_change_color_event(event):
+        dominant_cluster = _largest_color_cluster(remaining_hand)
+        legal_non_wild_options = _count_legal_non_wild_options(remaining_hand, state)
+        if legal_non_wild_options == 0 or (strong_pressure and dominant_cluster >= 2):
+            return 6.0
+        return 11.0
+
+    if is_regular_card_event(event):
+        support_value = _regular_support_value(remaining_hand, event)
+        if lethal_pressure and support_value > 0:
+            return 7.0
+        if support_value > 0:
+            return 7.5
+        return 9.5
+
+    return 10.0
+
+
+def _prioritize_optimal_turn_events(card_events: list[BPEvent], state: Dict[str, Any]) -> list[BPEvent]:
+    prioritized = []
+    for event in _actual_hand_events(card_events):
+        remaining_hand = _remove_one_event_from_list(card_events, event.name)
+        priority = _choose_optimal_turn_priority(event, remaining_hand, state)
+        prioritized.append(BPEvent(event.name, priority=priority))
+    return prioritized
+
+
+def _choose_optimal_taki_priority(event: BPEvent, remaining_hand: list[BPEvent]) -> float:
+    if event.name.endswith("_closed_taki"):
+        return 15.0
+
+    if _has_immediate_empty_hand_line(remaining_hand):
+        return 4.0
+
+    if is_change_color_event(event):
+        return 16.0
+
+    if is_super_taki_event(event):
+        return 12.0
+
+    if is_external_hand_card_event(event):
+        color, card_type = extract_card_color_and_type(event)
+        same_color_followups = _same_color_followups(remaining_hand, color)
+        if card_type == "TAKI" and same_color_followups >= 1:
+            return 5.0
+        if same_color_followups >= 1:
+            return 5.25
+        return 6.5
+
+    return 10.0
+
+
+def _prioritize_optimal_taki_events(card_events: list[BPEvent]) -> list[BPEvent]:
+    prioritized = []
+    for event in card_events:
+        remaining_hand = _remove_one_event_from_list(card_events, event.name)
+        priority = _choose_optimal_taki_priority(event, remaining_hand)
+        prioritized.append(BPEvent(event.name, priority=priority))
+    return prioritized
+
+
+def _apply_color_priority_order(card_events: list[BPEvent]) -> list[BPEvent]:
+    support_weights = {color: 0 for color in COLORS}
+    counts = {color: 0 for color in COLORS}
+
+    for event in _actual_hand_events(card_events):
+        color, _ = extract_card_color_and_type(event)
+        if color not in COLORS:
+            continue
+        counts[color] += 1
+        if is_taki_card_event(event):
+            support_weights[color] += 2
+        elif is_stop_card_event(event):
+            support_weights[color] += 1
+
+    ranked_colors = sorted(
+        COLORS,
+        key=lambda color: (-counts[color], -support_weights[color], COLORS.index(color)),
+    )
+    priorities = {
+        color: 4.0 + rank
+        for rank, color in enumerate(ranked_colors)
+    }
+    return [BPEvent(f"selected_{color}", priority=priorities[color]) for color in COLORS]
+
+
+def _track_strategy_event(
+    state: Dict[str, Any],
+    event: BPEvent,
+    index: int,
+    num_of_players: int,
+    card_events: Optional[list[BPEvent]] = None,
+) -> None:
+    pending_before = state.get("pending_deal_player")
+    update_external_bridge_state_from_event(state, event, num_of_players)
+
+    if (
+        card_events is not None
+        and pending_before == index
+        and hasattr(event, "name")
+        and event.name.startswith("deal_p_")
+    ):
+        card_name = remove_deal_prefix_and_add_player_index(event, index)
+        card_events.append(BPEvent(card_name, priority=event.priority))
+
+
+@bp.thread
+def optimal_strategy(index, num_of_cards=2, starting_player=0, num_of_players=2):
+    state = init_external_bridge_state(index, starting_player, num_of_players)
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    next_turn_event = BPEvent("next_turn", priority=10.0)
+    no_more_cards_event = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
+
+    while True:
+        observed_event = yield bp.sync(waitFor=bp.All())
+        _track_strategy_event(state, observed_event, index, num_of_players, card_events)
+        if observed_event.name == "start_game":
+            break
+
+    while True:
+        while state["current_player"] != index:
+            observed_event = yield bp.sync(waitFor=bp.All())
+            _track_strategy_event(state, observed_event, index, num_of_players, card_events)
+            if observed_event.name == "end_game":
+                return
+
+        prioritized_hand = _prioritize_optimal_turn_events(card_events, state)
+        card_event = yield bp.sync(request=prioritized_hand, waitFor=[draw_card_event])
+        _track_strategy_event(state, card_event, index, num_of_players)
+
+        if is_regular_card_event(card_event):
+            _remove_first_matching_event(card_events, card_event.name)
+
+        elif is_draw_card_event(card_event):
+            draw_target_event = yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            _track_strategy_event(state, draw_target_event, index, num_of_players)
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            _track_strategy_event(state, deal_card_event, index, num_of_players, card_events)
+
+        elif is_action_card_event(card_event):
+            _remove_first_matching_event(card_events, card_event.name)
+
+            if is_any_taki_event(card_event):
+                card_events.append(BPEvent(f"p_{index}_closed_taki", priority=15.0))
+
+                while True:
+                    prioritized_taki_events = _prioritize_optimal_taki_events(card_events)
+                    taki_event = yield bp.sync(request=prioritized_taki_events)
+                    _track_strategy_event(state, taki_event, index, num_of_players)
+                    _remove_first_matching_event(card_events, taki_event.name)
+                    if taki_event.name == f"p_{index}_closed_taki":
+                        break
+
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                _track_strategy_event(state, done_post_action_event, index, num_of_players)
+
+            elif is_change_color_event(card_event):
+                selected_color_event = yield bp.sync(waitFor=[BPEvent(f"selected_{color}", priority=5.0) for color in COLORS])
+                _track_strategy_event(state, selected_color_event, index, num_of_players)
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                _track_strategy_event(state, done_post_action_event, index, num_of_players)
+
+            else:
+                done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                _track_strategy_event(state, done_post_action_event, index, num_of_players)
+
+        last_event = yield bp.sync(waitFor=[no_more_cards_event, next_turn_event, BPEvent("end_game", priority=10.0)])
+        _track_strategy_event(state, last_event, index, num_of_players)
+        if last_event.name in {no_more_cards_event.name, "end_game"}:
+            break
+
+
+@bp.thread
+def optimal_change_color_strategy(index, num_of_cards=2, starting_player=0, num_of_players=2):
+    state = init_external_bridge_state(index, starting_player, num_of_players)
+    card_events = []
+
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
+
+    while True:
+        observed_event = yield bp.sync(waitFor=bp.All())
+        _track_strategy_event(state, observed_event, index, num_of_players, card_events)
+
+        if observed_event.name == f"p_{index}_change_color":
+            _remove_first_matching_event(card_events, observed_event.name)
+            selected_color_events = _apply_color_priority_order(card_events)
+            selected_color_event = yield bp.sync(request=selected_color_events)
+            _track_strategy_event(state, selected_color_event, index, num_of_players)
+            done_post_action_event = yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            _track_strategy_event(state, done_post_action_event, index, num_of_players)
+        elif observed_event.name == "end_game":
+            return
+
+
 def add_event_to_card_events_according_to_basic_strategy_taki(index, card_name, original_priority, card_events):
     """
     Add a card event to player's hand with priority adjustment for TAKI cards.
@@ -1552,6 +1880,8 @@ def init_b_program(starting_player=1):
         basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
         block_next_turn_during_open_taki(1),
+        optimal_strategy(0, NUM_OF_CARDS),
+        optimal_change_color_strategy(0, NUM_OF_CARDS),
         enforce_turns(2, starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
