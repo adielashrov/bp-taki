@@ -1,0 +1,13 @@
+2026-04-04 01:01:26,788 - __main__ - INFO - ===== Tracing deadlock for seed 4 with starting_player=0 =====
+2026-04-04 01:01:26,822 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_3_red
+2026-04-04 01:01:26,833 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=super_taki
+2026-04-04 01:01:26,834 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=taki_red
+2026-04-04 01:01:26,836 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=taki_red
+2026-04-04 01:01:26,837 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=card_1_red
+2026-04-04 01:01:26,838 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=closed_taki
+2026-04-04 01:01:26,856 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_1_green
+2026-04-04 01:01:26,861 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_4_green
+2026-04-04 01:01:26,865 - __main__ - INFO - Game result: GameResult(game_number=5, seed=4, winner=None, event_count=73, starting_player=0, duration_seconds=0.076187, ended_in_deadlock=True, ended_in_draw=False)
+2026-04-04 01:01:26,865 - __main__ - INFO - Deadlock: True
+2026-04-04 01:01:26,865 - __main__ - INFO - Events: 73
+2026-04-04 01:01:26,865 - __main__ - INFO - Log written to: deadlock_trace_seed4_01-01-26.log

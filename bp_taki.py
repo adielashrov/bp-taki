@@ -20,7 +20,7 @@ NUM_OF_PLAYERS = 2
 COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 42 # good seeds for change color: 2, 4, a bug in 5
+SEED = 136 # good seeds for change color: 2, 4, a bug in 5
 
 LOG_LEVEL = logging.INFO
 
@@ -392,6 +392,15 @@ def is_deal_regular_card_event(event: BPEvent) -> bool:
         return True
     return False
 
+
+def create_regular_leading_card_events():
+    """Create the pool of regular numbered cards that may be used as a leading card."""
+    return [
+        deal_event
+        for deal_event in create_deal_events(init_cards_events())
+        if is_deal_regular_card_event(deal_event)
+    ]
+
 @bp.thread
 def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
     """
@@ -443,9 +452,16 @@ def deal_cards(num_of_players=2, num_of_cards=2, starting_player=0):
     # Filter to only regular numbered cards
     regular_cards = [card for card in deal_cards_events
                      if is_deal_regular_card_event(card)]
+    if not regular_cards:
+        logger.debug(
+            "[DEAL_CARDS] No regular cards left for the leading card after initial deal. "
+            "Falling back to a fresh regular leading-card pool."
+        )
+        regular_cards = create_regular_leading_card_events()
     # We want that the leading card will be a regular card.
     last_event = yield bp.sync(request=regular_cards)  # possible pattern here?
-    deal_cards_events.remove(last_event)
+    if last_event in deal_cards_events:
+        deal_cards_events.remove(last_event)
     yield bp.sync(request=BPEvent(f"leading_{last_event.name}", priority=10.0))
     yield bp.sync(request=BPEvent("finished_leading_card", priority=10.0))
 
@@ -806,14 +822,12 @@ def basic_strategy_taki(index, num_of_cards=2):
     """
     # logger.debug(f"[STRATEGY_TAKI] Player {index}: B-thread started, waiting for initial deal")
 
-    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
-    # logger.debug(f"[STRATEGY_TAKI] Player {index}: deal of cards to player started, receiving {num_of_cards} cards")
-
     card_events = []
     deal_player_cards_event_set = DealCardsEventSet()
 
     # Receive initial hand
     for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
         card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
         # logger.debug(f"[STRATEGY_TAKI] Player {index}: Received card #{i + 1}/{num_of_cards}: {card_name}")
@@ -887,6 +901,7 @@ def basic_strategy_taki(index, num_of_cards=2):
 
         elif is_draw_card_event(card_event):
             logger.debug(f"[STRATEGY_TAKI] Player {index}: Drawing a card (no playable cards available)")
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             # logger.debug(f"[STRATEGY_TAKI] Player {index}: Drew card: {card_name}")
@@ -943,14 +958,12 @@ def basic_strategy_taki_and_super_taki(index, num_of_cards=2):
       """
     # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: B-thread started, waiting for initial deal")
 
-    yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
-    # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: deal of cards to player started, receiving {num_of_cards} cards")
-
     card_events = []
     deal_player_cards_event_set = DealCardsEventSet()
 
     # Receive initial hand
     for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
         deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
         card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
         # logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Received card #{i + 1}/{num_of_cards}: {card_name}")
@@ -1024,6 +1037,7 @@ def basic_strategy_taki_and_super_taki(index, num_of_cards=2):
 
         elif is_draw_card_event(card_event):
             logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Drawing a card...")
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             logger.debug(f"[STRATEGY_TAKI_2] Player {index}: Drew card: {card_name}")
@@ -1066,6 +1080,39 @@ def strategy_block_super_taki_during_regular_taki(index):
         elif is_no_more_cards_event(last_event):
             logger.debug(f"[STRATEGY_BLOCK_SUPER_TAKI]: NO MORE CARDS! Game over.")
             break
+
+
+@bp.thread
+def block_next_turn_during_open_taki(index):
+    taki_start_event_set = bp.EventSet(
+        lambda e: is_any_taki_event(e) and get_player_id(e.name) == index
+    )
+    closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+    done_post_action_event = BPEvent("done_post_action", priority=10.0)
+    next_turn_event_set = bp.EventSet(lambda e: hasattr(e, "name") and e.name == "next_turn")
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    while True:
+        last_event = yield bp.sync(waitFor=bp.EventSetList([taki_start_event_set, BPEvent("end_game", priority=10.0)]))
+        if last_event.name == "end_game":
+            break
+
+        logger.debug(f"[TAKI_TURN_GUARD] Player {index}: TAKI opened, blocking next_turn until done_post_action")
+        last_event = yield bp.sync(
+            waitFor=bp.EventSetList([closed_taki_event, BPEvent("end_game", priority=10.0)]),
+            block=next_turn_event_set,
+        )
+        if last_event.name == "end_game":
+            break
+        logger.debug(f"[TAKI_TURN_GUARD] Player {index}: closed_taki observed, keeping next_turn blocked until done_post_action")
+        last_event = yield bp.sync(
+            waitFor=bp.EventSetList([done_post_action_event, BPEvent("end_game", priority=10.0)]),
+            block=next_turn_event_set,
+        )
+        if last_event.name == "end_game":
+            break
+        logger.debug(f"[TAKI_TURN_GUARD] Player {index}: done_post_action observed, next_turn unblocked")
 
 
 def extract_card_color_and_type(event: BPEvent) -> Union[tuple[str, str], tuple[None, None]]:
@@ -1161,14 +1208,24 @@ def enforce_turns(num_of_players=2, starting_player=0):
         if last_event.name.startswith(f"p_{current_player}_stop"): # stop_card
             next_player = (next_player + 1) % num_of_players
             logger.debug(f"[ENFORCE_TURNS] Stop card played by Player {current_player}, next player is: {next_player}")
-            yield bp.sync(request=BPEvent("done_post_action", priority=10.0),
-                                   block=all_other_player_cards_besides_special_cards(current_player))
+            yield bp.sync(
+                request=BPEvent("done_post_action", priority=10.0),
+                block=general_player_event_set,
+            )
 
         if is_any_taki_event(last_event):# Super TAKI or TAKI played
             taki_type = "Regular TAKI" if is_taki_card_event(last_event) else "Super TAKI"
-            logger.debug(f"[ENFORCE_TURNS] {taki_type} by Player {current_player}, requesting done_post_action")
-            yield bp.sync(request=BPEvent("done_post_action", priority=17.5), # priority here is higher than draw_card, but lower than closed_taki
-                                  block=all_other_player_cards_besides_special_cards(current_player))
+            closed_taki_event = BPEvent(f"p_{current_player}_closed_taki", priority=15.0)
+            logger.debug(f"[ENFORCE_TURNS] {taki_type} by Player {current_player}, waiting for closed_taki")
+            yield bp.sync(
+                waitFor=closed_taki_event,
+                block=all_other_player_cards_besides_special_cards(current_player),
+            )
+            logger.debug(f"[ENFORCE_TURNS] closed_taki received for {taki_type}, requesting done_post_action")
+            yield bp.sync(
+                request=BPEvent("done_post_action", priority=10.0),
+                block=general_player_event_set,
+            )
             logger.debug(f"[ENFORCE_TURNS] done_post_action completed for {taki_type}")
 
 def get_taki_mode_color(last_event, card_color):
@@ -1217,7 +1274,10 @@ def enforce_card_placement_rules():
             selected_color_event = yield bp.sync(waitFor=selected_color_events)
             card_color, _ = extract_card_color_and_type(event=selected_color_event)
             different_colors_or_types_event_set = create_block_set_color_only(card_color)
-            yield bp.sync(request=BPEvent("done_post_action", priority=10.0))
+            yield bp.sync(
+                request=BPEvent("done_post_action", priority=10.0),
+                block=general_player_event_set,
+            )
 
         elif is_stop_card_event(last_event):
             card_color, card_type = extract_card_color_and_type(event=last_event)
@@ -1482,24 +1542,23 @@ def setup_logger():
 
 
 def init_b_program(starting_player=1):
-    
     enable_tests = True
 
-    # Core game threads
     game_threads = [
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        # player_behavior(1, NUM_OF_CARDS),
-        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS), # Use the external version of player 1 to allow more flexible strategies
+        player_behavior(1, NUM_OF_CARDS),
+        basic_strategy_taki(0, NUM_OF_CARDS),
+        block_next_turn_during_open_taki(0),
+        block_next_turn_during_open_taki(1),
         enforce_turns(2, starting_player),
         enforce_card_placement_rules(),
         identify_deadlock(),
         identify_livelock(),
-        verify_turn_alternation()
+        verify_turn_alternation(),
     ]
-    
-    # Regression test threads
+
     test_threads = []
     if enable_tests:
         test_threads = [
@@ -1507,14 +1566,14 @@ def init_b_program(starting_player=1):
             test_first_card_matches_leading_card(),
             test_no_game_events_before_start(),
             test_no_game_events_after_end(),
-            test_no_more_cards_before_end_game()
+            test_no_more_cards_before_end_game(),
         ]
         logger.info(f"[INIT] Regression tests enabled: {len(test_threads)} test(s)")
-    
+
     b_program = bp.BProgram(
         bthreads=game_threads + test_threads,
         event_selection_strategy=EventPrioritySelectionStrategy(),
-        listener=LogBProgramRunnerListener(logger=logger)
+        listener=LogBProgramRunnerListener(logger=logger),
     )
 
     return b_program
