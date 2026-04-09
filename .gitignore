@@ -154,3 +154,9 @@ fabric.properties
 
 # vscode
 .vscode/
+
+# Simulation result JSON files (auto-generated, large, high-churn)
+Results/**/*.json
+
+# Simulation log files
+Results/**/*.log
