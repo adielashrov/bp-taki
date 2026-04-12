@@ -1,0 +1,188 @@
+2026-04-04 01:02:03,598 - __main__ - INFO - ===== Tracing deadlock for seed 4 with starting_player=0 =====
+2026-04-04 01:02:03,599 - TakiGame - DEBUG - [DEAL_CARDS] Dealing order: [0, 1] (starting_player=0)
+2026-04-04 01:02:03,601 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_card_5_red' with standard priority 10.0
+2026-04-04 01:02:03,601 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 1 cards (0 TAKI cards)
+2026-04-04 01:02:03,602 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding TAKI card 'p_0_taki_red' with BOOSTED priority 5.0 (original: 10.0)
+2026-04-04 01:02:03,602 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 2 cards (1 TAKI cards)
+2026-04-04 01:02:03,604 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_card_4_red' with standard priority 10.0
+2026-04-04 01:02:03,604 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 3 cards (1 TAKI cards)
+2026-04-04 01:02:03,605 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_card_1_red' with standard priority 10.0
+2026-04-04 01:02:03,606 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 4 cards (1 TAKI cards)
+2026-04-04 01:02:03,607 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_stop_red' with standard priority 10.0
+2026-04-04 01:02:03,607 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 5 cards (1 TAKI cards)
+2026-04-04 01:02:03,608 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_card_4_green' with standard priority 10.0
+2026-04-04 01:02:03,608 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 6 cards (1 TAKI cards)
+2026-04-04 01:02:03,609 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding regular card 'p_0_stop_red' with standard priority 10.0
+2026-04-04 01:02:03,610 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 7 cards (1 TAKI cards)
+2026-04-04 01:02:03,611 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Adding TAKI card 'p_0_taki_green' with BOOSTED priority 5.0 (original: 10.0)
+2026-04-04 01:02:03,611 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Hand now contains 8 cards (2 TAKI cards)
+2026-04-04 01:02:03,620 - TakiGame - DEBUG - [STRATEGY_TAKI] P0 Turn #1 | Hand: 8 cards (2 TAKI)
+2026-04-04 01:02:03,626 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_3_red
+2026-04-04 01:02:03,626 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,626 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+2026-04-04 01:02:03,628 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,629 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+2026-04-04 01:02:03,630 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: p_0_taki_red
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - [ENFORCE_TURNS] Regular TAKI by Player 0, requesting done_post_action
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_0_taki_red
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - [ENFORCE_RULES] Previous placement color=red
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,631 - TakiGame - DEBUG - [ENFORCE_RULES] Regular TAKI detected: p_0_taki_red
+2026-04-04 01:02:03,632 - TakiGame - DEBUG - [ENFORCE_RULES] Color determined by TAKI card: red
+2026-04-04 01:02:03,632 - TakiGame - DEBUG - [ENFORCE_RULES] Blocking all non-red cards
+2026-04-04 01:02:03,632 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,632 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,698 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Regular TAKI PLAYED! Strategy success - prioritized TAKI card was selected
+2026-04-04 01:02:03,699 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,699 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,700 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,700 - TakiGame - DEBUG - [PLAYER_0] Super TAKI SEQUENCE STARTING: p_0_super_taki
+2026-04-04 01:02:03,700 - TakiGame - DEBUG - [PLAYER_0] Removing TAKI from hand
+2026-04-04 01:02:03,700 - TakiGame - DEBUG - [PLAYER_0] Adding closed_taki to possible actions
+2026-04-04 01:02:03,700 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,701 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_super_taki
+2026-04-04 01:02:03,701 - TakiGame - DEBUG - [ENFORCE_RULES] SuperTAKI Card accepted during TAKI: p_0_super_taki (color=red, type=SUPER_TAKI)
+2026-04-04 01:02:03,701 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,702 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,702 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,703 - TakiGame - DEBUG - [PLAYER_0] Card played in TAKI: p_0_card_4_red
+2026-04-04 01:02:03,703 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_card_4_red
+2026-04-04 01:02:03,703 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_0_card_4_red (color=red, type=4)
+2026-04-04 01:02:03,703 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,712 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,712 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,713 - TakiGame - DEBUG - [PLAYER_0] Card played in TAKI: p_0_stop_red
+2026-04-04 01:02:03,714 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_stop_red
+2026-04-04 01:02:03,714 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_0_stop_red (color=red, type=STOP)
+2026-04-04 01:02:03,714 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,721 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,721 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,722 - TakiGame - DEBUG - [PLAYER_0] Card played in TAKI: p_0_stop_red
+2026-04-04 01:02:03,723 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_stop_red
+2026-04-04 01:02:03,723 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_0_stop_red (color=red, type=STOP)
+2026-04-04 01:02:03,723 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,729 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,729 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,729 - TakiGame - DEBUG - [PLAYER_0] Card played in TAKI: p_0_card_5_red
+2026-04-04 01:02:03,730 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_card_5_red
+2026-04-04 01:02:03,730 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_0_card_5_red (color=red, type=5)
+2026-04-04 01:02:03,730 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,735 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,735 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_green (card_color=green, TAKI_color=red) -> BLOCK
+2026-04-04 01:02:03,736 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,736 - TakiGame - DEBUG - [PLAYER_0] TAKI SEQUENCE ENDING
+2026-04-04 01:02:03,736 - TakiGame - DEBUG - [PLAYER_0] Cards played: ['p_0_card_4_red', 'p_0_stop_red', 'p_0_stop_red', 'p_0_card_5_red']
+2026-04-04 01:02:03,736 - TakiGame - DEBUG - [PLAYER_0] Total cards in sequence: 4
+2026-04-04 01:02:03,736 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,737 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_closed_taki
+2026-04-04 01:02:03,737 - TakiGame - DEBUG - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+2026-04-04 01:02:03,737 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,738 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Cards played in sequence: ['p_0_card_4_red', 'p_0_stop_red', 'p_0_stop_red', 'p_0_card_5_red']
+2026-04-04 01:02:03,738 - TakiGame - DEBUG - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+2026-04-04 01:02:03,739 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: done_post_action
+2026-04-04 01:02:03,739 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,740 - TakiGame - DEBUG - [ENFORCE_RULES] TAKI sequence ended
+2026-04-04 01:02:03,740 - TakiGame - DEBUG - [ENFORCE_RULES] Cards played in sequence: ['p_0_super_taki', 'p_0_card_4_red', 'p_0_stop_red', 'p_0_stop_red', 'p_0_card_5_red']
+2026-04-04 01:02:03,741 - TakiGame - DEBUG - [ENFORCE_RULES] Last card color: red, type: 5
+2026-04-04 01:02:03,741 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,741 - TakiGame - DEBUG - [ENFORCE_RULES] Post-TAKI placement rules: must match color=red OR type=5
+2026-04-04 01:02:03,742 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=super_taki
+2026-04-04 01:02:03,743 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,743 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+2026-04-04 01:02:03,744 - TakiGame - DEBUG - [STRATEGY_TAKI] P0 | Remaining: 3 cards (1 TAKI)
+2026-04-04 01:02:03,744 - TakiGame - DEBUG - [STRATEGY_TAKI] P0 Turn #2 | Hand: 3 cards (1 TAKI)
+2026-04-04 01:02:03,745 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,745 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] TAKI SEQUENCE STARTING: p_1_super_taki
+2026-04-04 01:02:03,745 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Removing TAKI from hand
+2026-04-04 01:02:03,745 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Adding closed_taki to possible actions
+2026-04-04 01:02:03,746 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,746 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=taki_red
+2026-04-04 01:02:03,746 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: p_1_super_taki
+2026-04-04 01:02:03,747 - TakiGame - DEBUG - [ENFORCE_TURNS] Super TAKI by Player 1, requesting done_post_action
+2026-04-04 01:02:03,747 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,747 - TakiGame - DEBUG - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_1_super_taki
+2026-04-04 01:02:03,747 - TakiGame - DEBUG - [ENFORCE_RULES] Previous placement color=red
+2026-04-04 01:02:03,747 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - [ENFORCE_RULES] Super TAKI detected: p_1_super_taki
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - [ENFORCE_RULES] Color inherited from previous card: red
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - [ENFORCE_RULES] Blocking all non-red cards
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,748 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,750 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Card played in TAKI: p_1_taki_red
+2026-04-04 01:02:03,750 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=taki_red
+2026-04-04 01:02:03,751 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_1_taki_red
+2026-04-04 01:02:03,751 - TakiGame - DEBUG - [ENFORCE_RULES] TAKI Card accepted during TAKI: p_1_taki_red (color=red, type=TAKI)
+2026-04-04 01:02:03,751 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,752 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Card played in TAKI: p_1_taki_red
+2026-04-04 01:02:03,753 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=card_1_red
+2026-04-04 01:02:03,753 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_1_taki_red
+2026-04-04 01:02:03,753 - TakiGame - DEBUG - [ENFORCE_RULES] TAKI Card accepted during TAKI: p_1_taki_red (color=red, type=TAKI)
+2026-04-04 01:02:03,754 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,755 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Card played in TAKI: p_1_card_1_red
+2026-04-04 01:02:03,755 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=taki_sequence action=closed_taki
+2026-04-04 01:02:03,755 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_1_card_1_red
+2026-04-04 01:02:03,756 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_1_card_1_red (color=red, type=1)
+2026-04-04 01:02:03,756 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,757 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,757 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] TAKI SEQUENCE ENDING
+2026-04-04 01:02:03,758 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Cards played: ['p_1_taki_red', 'p_1_taki_red', 'p_1_card_1_red']
+2026-04-04 01:02:03,758 - TakiGame - DEBUG - [PLAYER_EXTERNAL_1] Total cards in sequence: 3
+2026-04-04 01:02:03,758 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,758 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_1_closed_taki
+2026-04-04 01:02:03,758 - TakiGame - DEBUG - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+2026-04-04 01:02:03,759 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+2026-04-04 01:02:03,760 - TakiGame - DEBUG - [ENFORCE_TURNS] done_post_action completed for Super TAKI
+2026-04-04 01:02:03,760 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: done_post_action
+2026-04-04 01:02:03,760 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,760 - TakiGame - DEBUG - [ENFORCE_RULES] TAKI sequence ended
+2026-04-04 01:02:03,761 - TakiGame - DEBUG - [ENFORCE_RULES] Cards played in sequence: ['p_1_taki_red', 'p_1_taki_red', 'p_1_card_1_red']
+2026-04-04 01:02:03,761 - TakiGame - DEBUG - [ENFORCE_RULES] Last card color: red, type: 1
+2026-04-04 01:02:03,761 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,761 - TakiGame - DEBUG - [ENFORCE_RULES] Post-TAKI placement rules: must match color=red OR type=1
+2026-04-04 01:02:03,762 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,762 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+2026-04-04 01:02:03,773 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_1_green
+2026-04-04 01:02:03,774 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,774 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+2026-04-04 01:02:03,774 - TakiGame - DEBUG - [STRATEGY_TAKI] P0 | Remaining: 2 cards (1 TAKI)
+2026-04-04 01:02:03,775 - TakiGame - DEBUG - [STRATEGY_TAKI] P0 Turn #3 | Hand: 2 cards (1 TAKI)
+2026-04-04 01:02:03,776 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,777 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+2026-04-04 01:02:03,778 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: p_0_taki_green
+2026-04-04 01:02:03,778 - TakiGame - DEBUG - [ENFORCE_TURNS] Regular TAKI by Player 0, requesting done_post_action
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_0_taki_green
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - [ENFORCE_RULES] Previous placement color=green
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - [ENFORCE_RULES] Regular TAKI detected: p_0_taki_green
+2026-04-04 01:02:03,779 - TakiGame - DEBUG - [ENFORCE_RULES] Color determined by TAKI card: green
+2026-04-04 01:02:03,780 - TakiGame - DEBUG - [ENFORCE_RULES] Blocking all non-green cards
+2026-04-04 01:02:03,780 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,780 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be green) or done_post_action.
+2026-04-04 01:02:03,785 - TakiGame - DEBUG - [STRATEGY_TAKI] Player 0: Regular TAKI PLAYED! Strategy success - prioritized TAKI card was selected
+2026-04-04 01:02:03,786 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=green) -> BLOCK
+2026-04-04 01:02:03,786 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_4_blue (card_color=blue, TAKI_color=green) -> BLOCK
+2026-04-04 01:02:03,786 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: p_0_card_5_green
+2026-04-04 01:02:03,787 - TakiGame - DEBUG - [ENFORCE_RULES] Card accepted during TAKI: p_0_card_5_green (color=green, type=5)
+2026-04-04 01:02:03,787 - TakiGame - DEBUG - [ENFORCE_RULES] Waiting for card (must be green) or done_post_action.
+2026-04-04 01:02:03,788 - TakiGame - INFO - [PLAYER_EXTERNAL_API] player=1 phase=turn action=card_4_green
+2026-04-04 01:02:03,789 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_5_blue (card_color=blue, TAKI_color=green) -> BLOCK
+2026-04-04 01:02:03,790 - TakiGame - DEBUG - [TAKI_BLOCK] CHECK event=p_0_card_4_blue (card_color=blue, TAKI_color=green) -> BLOCK
+2026-04-04 01:02:03,791 - TakiGame - DEBUG - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+2026-04-04 01:02:03,791 - TakiGame - DEBUG - [ENFORCE_RULES] Event received: done_post_action
+2026-04-04 01:02:03,791 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,792 - TakiGame - DEBUG - [ENFORCE_RULES] TAKI sequence ended
+2026-04-04 01:02:03,792 - TakiGame - DEBUG - [ENFORCE_RULES] Cards played in sequence: ['p_0_card_5_green']
+2026-04-04 01:02:03,792 - TakiGame - DEBUG - [ENFORCE_RULES] Last card color: green, type: 5
+2026-04-04 01:02:03,792 - TakiGame - DEBUG - ============================================================
+2026-04-04 01:02:03,793 - TakiGame - DEBUG - [ENFORCE_RULES] Post-TAKI placement rules: must match color=green OR type=5
+2026-04-04 01:02:03,796 - TakiGame - DEBUG - [ENFORCE_TURNS] Event received: next_turn
+2026-04-04 01:02:03,796 - TakiGame - DEBUG - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+2026-04-04 01:02:03,799 - __main__ - INFO - Game result: GameResult(game_number=5, seed=4, winner=None, event_count=73, starting_player=0, duration_seconds=0.200296, ended_in_deadlock=True, ended_in_draw=False)
+2026-04-04 01:02:03,799 - __main__ - INFO - Deadlock: True
+2026-04-04 01:02:03,799 - __main__ - INFO - Events: 73
+2026-04-04 01:02:03,800 - __main__ - INFO - Log written to: deadlock_trace_seed4_01-02-03.log
