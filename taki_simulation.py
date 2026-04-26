@@ -34,6 +34,7 @@ from bp_taki import (
     NUM_OF_CARDS,
     NUM_OF_PLAYERS,
 )
+from python_taki_api.python_agent import PythonAgent
 
 
 @dataclass
@@ -884,6 +885,245 @@ def run_simulation_basic_vs_external(
     return stats
 
 
+def create_simulation_bprogram_basic_vs_strategy(
+    seed: int,
+    listener: SimulationListener,
+    num_cards: int = NUM_OF_CARDS,
+    starting_player: int = -1,
+    player_0_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+) -> bp.BProgram:
+    """
+    Create a BProgram with player 0 using a basic BP strategy and player 1
+    using PythonAgent (random policy).
+
+    Parameters
+    ----------
+    seed : int
+        Random seed for card dealing.
+    listener : SimulationListener
+        Listener to track game events.
+    num_cards : int
+        Number of cards to deal to each player.
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 for random selection based on seed.
+    player_0_strategy : str
+        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
+    player_0_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 0.
+
+    Returns
+    -------
+    tuple[bp.BProgram, int]
+        Configured behavioral program and the actual starting player.
+    """
+    random.seed(seed)
+
+    if starting_player == -1:
+        actual_starting_player = random.randint(0, 1)
+    else:
+        actual_starting_player = starting_player
+
+    bthreads = [
+        game_manager(),
+        deal_cards(NUM_OF_PLAYERS, num_cards, actual_starting_player),
+        player_behavior(0, num_cards),
+        player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS, PythonAgent(seed=seed)),
+        block_next_turn_during_open_taki(0),
+        enforce_turns(NUM_OF_PLAYERS, actual_starting_player),
+        enforce_card_placement_rules(),
+        identify_deadlock(),
+        identify_livelock(),
+        verify_turn_alternation(),
+    ]
+
+    if player_0_strategy == "taki":
+        bthreads.append(basic_strategy_taki(0, num_cards))
+    elif player_0_strategy == "taki_and_super_taki":
+        bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy != "basic":
+        raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
+
+    if player_0_block_super_taki:
+        bthreads.append(strategy_block_super_taki_during_regular_taki(0))
+
+    b_program = bp.BProgram(
+        bthreads=bthreads,
+        event_selection_strategy=EventPrioritySelectionStrategy(),
+        listener=listener,
+    )
+
+    return b_program, actual_starting_player
+
+
+def run_single_game_basic_vs_strategy(
+    game_number: int,
+    seed: int,
+    num_cards: int = NUM_OF_CARDS,
+    player_0_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+    starting_player: int = -1,
+    silent: bool = True,
+) -> Optional[GameResult]:
+    """
+    Run a single game: player 0 (basic BP) vs player 1 (PythonAgent random policy).
+    """
+    if silent:
+        original_level = logging.getLogger("TakiGame").level
+        logging.getLogger("TakiGame").setLevel(logging.CRITICAL)
+
+    try:
+        listener = SimulationListener()
+
+        start_time = datetime.now()
+        b_program, actual_starting_player = create_simulation_bprogram_basic_vs_strategy(
+            seed=seed,
+            listener=listener,
+            num_cards=num_cards,
+            starting_player=starting_player,
+            player_0_strategy=player_0_strategy,
+            player_0_block_super_taki=player_0_block_super_taki,
+        )
+        try:
+            b_program.run()
+        except AssertionError:
+            if not (listener.get_deadlock() or listener.get_draw()):
+                raise
+        end_time = datetime.now()
+
+        winner = listener.get_winner()
+        ended_in_deadlock = listener.get_deadlock()
+        ended_in_draw = listener.get_draw()
+
+        if winner is None and not (ended_in_deadlock or ended_in_draw):
+            print(f"Warning: Game {game_number} (seed={seed}) ended without a winner")
+            return None
+
+        if ended_in_deadlock:
+            print(f"Game {game_number} (seed={seed}) ended in deadlock.")
+
+        if ended_in_draw:
+            print(f"Game {game_number} (seed={seed}) ended in a draw.")
+
+        duration = (end_time - start_time).total_seconds()
+        return GameResult(
+            game_number=game_number,
+            seed=seed,
+            winner=winner,
+            event_count=listener.get_event_count(),
+            starting_player=actual_starting_player,
+            duration_seconds=duration,
+            ended_in_deadlock=ended_in_deadlock,
+            ended_in_draw=ended_in_draw,
+        )
+
+    except Exception as e:
+        print(f"Error in game {game_number} (seed={seed}): {type(e).__name__}: {e}")
+        return None
+
+    finally:
+        if silent:
+            logging.getLogger("TakiGame").setLevel(original_level)
+
+
+def run_simulation_basic_vs_strategy(
+    num_games: int,
+    start_seed: int = 0,
+    num_cards: int = NUM_OF_CARDS,
+    starting_player: int = -1,
+    balanced_starting_players: bool = False,
+    mirrored_starting_players: bool = False,
+    player_0_strategy: str = "basic",
+    player_0_block_super_taki: bool = False,
+    silent: bool = True,
+    progress_interval: int = 10,
+) -> SimulationStats:
+    """
+    Run multiple games of basic BP player (player 0) vs PythonAgent (random policy, player 1).
+
+    Parameters
+    ----------
+    num_games : int
+        Number of games to simulate. When ``mirrored_starting_players`` is
+        enabled, this is the number of unique seeds and the total number of
+        games played will be ``2 * num_games``.
+    start_seed : int
+        Starting random seed (each game increments by 1).
+    num_cards : int
+        Number of cards per player.
+    starting_player : int
+        Which player goes first (0 or 1). Use -1 to let the scheduler decide.
+    balanced_starting_players : bool
+        If True, assign starts as evenly as possible across the run.
+    mirrored_starting_players : bool
+        If True, run each seed twice: once with P0 starting and once with P1
+        starting. In this mode, ``num_games`` is the number of unique seeds.
+    player_0_strategy : str
+        Strategy for the BP player (player 0).
+    player_0_block_super_taki : bool
+        If True, add strategy_block_super_taki_during_regular_taki for player 0.
+    silent : bool
+        If True, suppress game logging.
+    progress_interval : int
+        Print progress every N games.
+
+    Returns
+    -------
+    SimulationStats
+        Statistics about all games.
+    """
+    schedule = build_game_schedule(
+        num_games=num_games,
+        start_seed=start_seed,
+        starting_player=starting_player,
+        balanced_starting_players=balanced_starting_players,
+        mirrored_starting_players=mirrored_starting_players,
+    )
+    total_scheduled_games = len(schedule)
+
+    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs PythonAgent-random)...")
+    print(f"Player 0 strategy: {player_0_strategy}" +
+          (" + block_super_taki" if player_0_block_super_taki else ""))
+    print(f"Player 1 strategy: PythonAgent (random policy)")
+    print(f"Cards per player: {num_cards}")
+    print(f"Starting seed: {start_seed}")
+
+    if mirrored_starting_players:
+        print(f"[+] Mirrored starting-player schedule enabled across {num_games} seeds.")
+    elif balanced_starting_players:
+        print("[+] Starting player will be balanced as evenly as possible across the run.")
+    elif starting_player == -1:
+        print("[+] Starting player will be randomized per game.")
+    else:
+        print(f"Starting player: {starting_player}")
+
+    print("-" * 60)
+
+    stats = SimulationStats()
+
+    for game_number, (seed, scheduled_starting_player) in enumerate(schedule, start=1):
+        result = run_single_game_basic_vs_strategy(
+            game_number=game_number,
+            seed=seed,
+            num_cards=num_cards,
+            player_0_strategy=player_0_strategy,
+            player_0_block_super_taki=player_0_block_super_taki,
+            starting_player=scheduled_starting_player,
+            silent=silent,
+        )
+
+        if result is not None:
+            stats.add_result(result)
+        else:
+            stats.record_error()
+
+        if game_number % progress_interval == 0:
+            print(f"Progress: {game_number}/{total_scheduled_games} games completed")
+
+    stats.test_results()
+    return stats
+
+
 def run_single_game(
     game_number: int,
     seed: int,
@@ -1174,8 +1414,8 @@ def run_bp_vs_bp_simulation():
 
 def run_bp_vs_external_player_simulation():
 
-    num_seed_pairs = 5000
-    player_0_strategy = "taki"
+    num_seed_pairs = 100
+    player_0_strategy = "basic"
     player_1_strategy = "external"
 
     stats = run_simulation_basic_vs_external(
@@ -1204,8 +1444,42 @@ def run_bp_vs_external_player_simulation():
     json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
+def run_bp_vs_strategy_player_simulation():
+    num_seed_pairs = 10000
+    player_0_strategy = "basic"
+    player_1_strategy = "random"
+
+    stats = run_simulation_basic_vs_strategy(
+        num_games=num_seed_pairs,
+        start_seed=0,
+        starting_player=-1,
+        balanced_starting_players=True,
+        mirrored_starting_players=False,
+        player_0_strategy=player_0_strategy,
+        player_0_block_super_taki=False,
+        silent=True,
+        progress_interval=500,
+    )
+
+    # Print summary
+    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
+    print("\n" + summary_text)
+
+    # Save summary to file with timestamp
+    timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
+    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
+    with open(summary_filename, 'w') as f:
+        f.write(summary_text)
+    print(f"Summary saved to: {summary_filename}")
+
+    # Save results
+    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
+    save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
+
+
 if __name__ == "__main__":
     # run_bp_vs_bp_simulation()
-    run_bp_vs_external_player_simulation()
+    # run_bp_vs_external_player_simulation()
+    run_bp_vs_strategy_player_simulation()
 
     
