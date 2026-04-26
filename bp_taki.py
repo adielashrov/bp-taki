@@ -674,12 +674,12 @@ def resolve_external_action_event(
 
 
 @bp.thread
-def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_players=2):
+def player_behavior_external(index, num_of_cards=2, starting_player=0, num_of_players=2, agent=None):
     """
     Bridge between the BP TAKI runtime and a Python policy with a Gym-like
     observation -> action loop.
     """
-    python_agent = PythonAgent(seed=SEED)
+    python_agent = agent if agent is not None else PythonAgent(seed=SEED)
     state = init_external_bridge_state(index, starting_player, num_of_players)
 
     yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
@@ -1548,7 +1548,7 @@ def init_b_program(starting_player=1):
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        player_behavior(1, NUM_OF_CARDS),
+        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
         basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
         block_next_turn_during_open_taki(1),
