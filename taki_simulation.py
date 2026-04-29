@@ -1464,7 +1464,7 @@ def run_bp_vs_strategy_player_simulation():
     num_seed_pairs = 10000
     # Possible values for player_0_strategy: "basic", "taki", "taki_and_super_taki"
     # Also, you can send player_0_block_super_taki=True to add the strategy_block_super_taki_during_regular_taki b-thread for player 0
-    player_0_strategy = "taki_and_super_taki"
+    player_0_strategy = "basic"
     player_0_block_super_taki = False
     player_1_strategy = "taki_strategy_agent heuristic_2"
 
