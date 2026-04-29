@@ -35,6 +35,7 @@ from bp_taki import (
     NUM_OF_PLAYERS,
 )
 from python_taki_api.python_agent import PythonAgent
+from python_taki_api.taki_strategy_agent import TakiStrategyAgent
 
 
 @dataclass
@@ -892,10 +893,11 @@ def create_simulation_bprogram_basic_vs_strategy(
     starting_player: int = -1,
     player_0_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
+    player_1_agent=None,
 ) -> bp.BProgram:
     """
     Create a BProgram with player 0 using a basic BP strategy and player 1
-    using PythonAgent (random policy).
+    using a Python agent (defaults to PythonAgent random policy).
 
     Parameters
     ----------
@@ -911,6 +913,8 @@ def create_simulation_bprogram_basic_vs_strategy(
         Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
+    player_1_agent : TakiAgent, optional
+        Agent for player 1. Defaults to PythonAgent(seed=seed) if not provided.
 
     Returns
     -------
@@ -924,11 +928,14 @@ def create_simulation_bprogram_basic_vs_strategy(
     else:
         actual_starting_player = starting_player
 
+    if player_1_agent is None:
+        player_1_agent = PythonAgent(seed=seed)
+
     bthreads = [
         game_manager(),
         deal_cards(NUM_OF_PLAYERS, num_cards, actual_starting_player),
         player_behavior(0, num_cards),
-        player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS, PythonAgent(seed=seed)),
+        player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS, player_1_agent),
         block_next_turn_during_open_taki(0),
         enforce_turns(NUM_OF_PLAYERS, actual_starting_player),
         enforce_card_placement_rules(),
@@ -964,9 +971,10 @@ def run_single_game_basic_vs_strategy(
     player_0_block_super_taki: bool = False,
     starting_player: int = -1,
     silent: bool = True,
+    player_1_agent=None,
 ) -> Optional[GameResult]:
     """
-    Run a single game: player 0 (basic BP) vs player 1 (PythonAgent random policy).
+    Run a single game: player 0 (basic BP) vs player 1 (Python agent).
     """
     if silent:
         original_level = logging.getLogger("TakiGame").level
@@ -983,6 +991,7 @@ def run_single_game_basic_vs_strategy(
             starting_player=starting_player,
             player_0_strategy=player_0_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
+            player_1_agent=player_1_agent,
         )
         try:
             b_program.run()
@@ -1037,9 +1046,11 @@ def run_simulation_basic_vs_strategy(
     player_0_block_super_taki: bool = False,
     silent: bool = True,
     progress_interval: int = 10,
+    player_1_agent=None,
+    player_1_strategy_name: str = "PythonAgent (random policy)",
 ) -> SimulationStats:
     """
-    Run multiple games of basic BP player (player 0) vs PythonAgent (random policy, player 1).
+    Run multiple games of basic BP player (player 0) vs a Python agent (player 1).
 
     Parameters
     ----------
@@ -1066,6 +1077,10 @@ def run_simulation_basic_vs_strategy(
         If True, suppress game logging.
     progress_interval : int
         Print progress every N games.
+    player_1_agent : TakiAgent, optional
+        Agent for player 1. Defaults to PythonAgent(seed=seed) per game if not provided.
+    player_1_strategy_name : str
+        Display name for player 1's strategy in progress output.
 
     Returns
     -------
@@ -1081,10 +1096,10 @@ def run_simulation_basic_vs_strategy(
     )
     total_scheduled_games = len(schedule)
 
-    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs PythonAgent-random)...")
+    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs {player_1_strategy_name})...")
     print(f"Player 0 strategy: {player_0_strategy}" +
           (" + block_super_taki" if player_0_block_super_taki else ""))
-    print(f"Player 1 strategy: PythonAgent (random policy)")
+    print(f"Player 1 strategy: {player_1_strategy_name}")
     print(f"Cards per player: {num_cards}")
     print(f"Starting seed: {start_seed}")
 
@@ -1110,6 +1125,7 @@ def run_simulation_basic_vs_strategy(
             player_0_block_super_taki=player_0_block_super_taki,
             starting_player=scheduled_starting_player,
             silent=silent,
+            player_1_agent=player_1_agent,
         )
 
         if result is not None:
@@ -1447,7 +1463,7 @@ def run_bp_vs_external_player_simulation():
 def run_bp_vs_strategy_player_simulation():
     num_seed_pairs = 10000
     player_0_strategy = "basic"
-    player_1_strategy = "random"
+    player_1_strategy = "taki_strategy_agent heuristic 2"
 
     stats = run_simulation_basic_vs_strategy(
         num_games=num_seed_pairs,
@@ -1457,6 +1473,8 @@ def run_bp_vs_strategy_player_simulation():
         mirrored_starting_players=False,
         player_0_strategy=player_0_strategy,
         player_0_block_super_taki=False,
+        player_1_agent=TakiStrategyAgent(),
+        player_1_strategy_name=player_1_strategy,
         silent=True,
         progress_interval=500,
     )
