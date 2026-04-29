@@ -843,7 +843,7 @@ def run_simulation_basic_vs_external(
     )
     total_scheduled_games = len(schedule)
 
-    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs external agent)...")
+    print(f"Starting simulation of {total_scheduled_games} games (BP vs external agent)...")
     print(f"Player 0 strategy: {player_0_strategy}" +
           (" + block_super_taki" if player_0_block_super_taki else ""))
     print(f"Player 1 strategy: external agent")
@@ -1462,8 +1462,11 @@ def run_bp_vs_external_player_simulation():
 
 def run_bp_vs_strategy_player_simulation():
     num_seed_pairs = 10000
-    player_0_strategy = "basic"
-    player_1_strategy = "taki_strategy_agent heuristic 2"
+    # Possible values for player_0_strategy: "basic", "taki", "taki_and_super_taki"
+    # Also, you can send player_0_block_super_taki=True to add the strategy_block_super_taki_during_regular_taki b-thread for player 0
+    player_0_strategy = "taki_and_super_taki"
+    player_0_block_super_taki = False
+    player_1_strategy = "taki_strategy_agent heuristic_2"
 
     stats = run_simulation_basic_vs_strategy(
         num_games=num_seed_pairs,
@@ -1472,7 +1475,7 @@ def run_bp_vs_strategy_player_simulation():
         balanced_starting_players=True,
         mirrored_starting_players=False,
         player_0_strategy=player_0_strategy,
-        player_0_block_super_taki=False,
+        player_0_block_super_taki=player_0_block_super_taki,
         player_1_agent=TakiStrategyAgent(),
         player_1_strategy_name=player_1_strategy,
         silent=True,
@@ -1485,13 +1488,14 @@ def run_bp_vs_strategy_player_simulation():
 
     # Save summary to file with timestamp
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
-    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
+    player_0_label = f"{player_0_strategy}_block" if player_0_block_super_taki else player_0_strategy
+    summary_filename = f"{player_0_label}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
     with open(summary_filename, 'w') as f:
         f.write(summary_text)
     print(f"Summary saved to: {summary_filename}")
 
     # Save results
-    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
+    json_filename = f"{player_0_label}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 
