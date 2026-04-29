@@ -842,7 +842,7 @@ def run_simulation_basic_vs_external(
     )
     total_scheduled_games = len(schedule)
 
-    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs external agent)...")
+    print(f"Starting simulation of {total_scheduled_games} games (BP vs external agent)...")
     print(f"Player 0 strategy: {player_0_strategy}" +
           (" + block_super_taki" if player_0_block_super_taki else ""))
     print(f"Player 1 strategy: external agent")
@@ -895,7 +895,7 @@ def create_simulation_bprogram_basic_vs_strategy(
 ) -> bp.BProgram:
     """
     Create a BProgram with player 0 using a basic BP strategy and player 1
-    using PythonAgent (random policy).
+    using a Python agent (defaults to PythonAgent random policy).
 
     Parameters
     ----------
@@ -928,7 +928,7 @@ def create_simulation_bprogram_basic_vs_strategy(
         game_manager(),
         deal_cards(NUM_OF_PLAYERS, num_cards, actual_starting_player),
         player_behavior(0, num_cards),
-        player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS, PythonAgent(seed=seed)),
+        player_behavior_external(1, num_cards, actual_starting_player, NUM_OF_PLAYERS, player_1_agent),
         block_next_turn_during_open_taki(0),
         enforce_turns(NUM_OF_PLAYERS, actual_starting_player),
         enforce_card_placement_rules(),
@@ -1039,7 +1039,7 @@ def run_simulation_basic_vs_strategy(
     progress_interval: int = 10,
 ) -> SimulationStats:
     """
-    Run multiple games of basic BP player (player 0) vs PythonAgent (random policy, player 1).
+    Run multiple games of basic BP player (player 0) vs a Python agent (player 1).
 
     Parameters
     ----------
@@ -1081,10 +1081,10 @@ def run_simulation_basic_vs_strategy(
     )
     total_scheduled_games = len(schedule)
 
-    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs PythonAgent-random)...")
+    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs {player_1_strategy_name})...")
     print(f"Player 0 strategy: {player_0_strategy}" +
           (" + block_super_taki" if player_0_block_super_taki else ""))
-    print(f"Player 1 strategy: PythonAgent (random policy)")
+    print(f"Player 1 strategy: {player_1_strategy_name}")
     print(f"Cards per player: {num_cards}")
     print(f"Starting seed: {start_seed}")
 
@@ -1446,7 +1446,10 @@ def run_bp_vs_external_player_simulation():
 
 def run_bp_vs_strategy_player_simulation():
     num_seed_pairs = 10000
+    # Possible values for player_0_strategy: "basic", "taki", "taki_and_super_taki"
+    # Also, you can send player_0_block_super_taki=True to add the strategy_block_super_taki_during_regular_taki b-thread for player 0
     player_0_strategy = "basic"
+    player_0_block_super_taki = False
     player_1_strategy = "random"
 
     stats = run_simulation_basic_vs_strategy(
@@ -1456,7 +1459,8 @@ def run_bp_vs_strategy_player_simulation():
         balanced_starting_players=True,
         mirrored_starting_players=False,
         player_0_strategy=player_0_strategy,
-        player_0_block_super_taki=False,
+        player_0_block_super_taki=player_0_block_super_taki,
+        player_1_agent=None,
         silent=True,
         progress_interval=500,
     )
@@ -1467,13 +1471,14 @@ def run_bp_vs_strategy_player_simulation():
 
     # Save summary to file with timestamp
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
-    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
+    player_0_label = f"{player_0_strategy}_block" if player_0_block_super_taki else player_0_strategy
+    summary_filename = f"{player_0_label}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
     with open(summary_filename, 'w') as f:
         f.write(summary_text)
     print(f"Summary saved to: {summary_filename}")
 
     # Save results
-    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
+    json_filename = f"{player_0_label}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 
