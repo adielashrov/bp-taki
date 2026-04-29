@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from log_b_program_runner_listener import LogBProgramRunnerListener
 from python_taki_api.python_agent import PythonAgent
+from python_taki_api.taki_strategy_agent import TakiStrategyAgent
 from external_bridge_state import (
     build_external_observation,
     init_external_bridge_state,
@@ -1548,8 +1549,8 @@ def init_b_program(starting_player=1):
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
-        basic_strategy_taki(0, NUM_OF_CARDS),
+        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, TakiStrategyAgent()),
+        # basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
         block_next_turn_during_open_taki(1),
         enforce_turns(2, starting_player),
