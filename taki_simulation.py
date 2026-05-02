@@ -892,6 +892,7 @@ def create_simulation_bprogram_basic_vs_strategy(
     starting_player: int = -1,
     player_0_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
+    player_1_agent=None,
 ) -> bp.BProgram:
     """
     Create a BProgram with player 0 using a basic BP strategy and player 1
@@ -911,6 +912,8 @@ def create_simulation_bprogram_basic_vs_strategy(
         Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
+    player_1_agent : optional
+        The Python agent for player 1. Defaults to PythonAgent(seed=seed) if None.
 
     Returns
     -------
@@ -923,6 +926,9 @@ def create_simulation_bprogram_basic_vs_strategy(
         actual_starting_player = random.randint(0, 1)
     else:
         actual_starting_player = starting_player
+
+    if player_1_agent is None:
+        player_1_agent = PythonAgent(seed=seed)
 
     bthreads = [
         game_manager(),
@@ -964,9 +970,10 @@ def run_single_game_basic_vs_strategy(
     player_0_block_super_taki: bool = False,
     starting_player: int = -1,
     silent: bool = True,
+    player_1_agent=None,
 ) -> Optional[GameResult]:
     """
-    Run a single game: player 0 (basic BP) vs player 1 (PythonAgent random policy).
+    Run a single game: player 0 (basic BP) vs player 1 (Python agent, defaults to PythonAgent random policy).
     """
     if silent:
         original_level = logging.getLogger("TakiGame").level
@@ -983,6 +990,7 @@ def run_single_game_basic_vs_strategy(
             starting_player=starting_player,
             player_0_strategy=player_0_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
+            player_1_agent=player_1_agent,
         )
         try:
             b_program.run()
@@ -1035,6 +1043,8 @@ def run_simulation_basic_vs_strategy(
     mirrored_starting_players: bool = False,
     player_0_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
+    player_1_agent=None,
+    player_1_strategy_name: str = "PythonAgent (random policy)",
     silent: bool = True,
     progress_interval: int = 10,
 ) -> SimulationStats:
@@ -1062,6 +1072,10 @@ def run_simulation_basic_vs_strategy(
         Strategy for the BP player (player 0).
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
+    player_1_agent : optional
+        The Python agent for player 1. Defaults to PythonAgent(seed=seed) if None.
+    player_1_strategy_name : str
+        Display name for player 1's strategy, used in printed output.
     silent : bool
         If True, suppress game logging.
     progress_interval : int
@@ -1110,6 +1124,7 @@ def run_simulation_basic_vs_strategy(
             player_0_block_super_taki=player_0_block_super_taki,
             starting_player=scheduled_starting_player,
             silent=silent,
+            player_1_agent=player_1_agent,
         )
 
         if result is not None:
@@ -1461,6 +1476,7 @@ def run_bp_vs_strategy_player_simulation():
         player_0_strategy=player_0_strategy,
         player_0_block_super_taki=player_0_block_super_taki,
         player_1_agent=None,
+        player_1_strategy_name=player_1_strategy,
         silent=True,
         progress_interval=500,
     )
