@@ -24,6 +24,8 @@ from bp_taki import (
     player_behavior_external,
     basic_strategy_taki,
     basic_strategy_taki_and_super_taki,
+    strategic_taki_strategy,
+    strategy_win_now_color_selection,
     block_next_turn_during_open_taki,
     strategy_block_super_taki_during_regular_taki,
     enforce_turns,
@@ -35,6 +37,8 @@ from bp_taki import (
     NUM_OF_PLAYERS,
 )
 from python_taki_api.python_agent import PythonAgent
+import multiprocessing
+from multiprocessing import Pool
 
 
 @dataclass
@@ -277,7 +281,13 @@ class SimulationStats:
             "second_ci": ci_second,
         }
 
-    def summary(self, player_0_strategy: str = None, player_1_strategy: str = None) -> str:
+    def summary(
+        self,
+        player_0_strategy: str = None,
+        player_1_strategy: str = None,
+        player_0_block_super_taki: bool = False,
+        player_1_block_super_taki: bool = False,
+    ) -> str:
         """Generate a summary string of the statistics."""
         lines = [
             "=" * 60,
@@ -295,6 +305,16 @@ class SimulationStats:
                 lines.append(f"  Player 0: {player_0_strategy}")
             if player_1_strategy is not None:
                 lines.append(f"  Player 1: {player_1_strategy}")
+
+        if player_0_block_super_taki or player_1_block_super_taki:
+            lines.extend([
+                "",
+                "Super TAKI blocking strategy used:",
+            ])
+            if player_0_block_super_taki:
+                lines.append("  Player 0: strategy_block_super_taki_during_regular_taki")
+            if player_1_block_super_taki:
+                lines.append("  Player 1: strategy_block_super_taki_during_regular_taki")
         
         lines.extend([
             "",
@@ -523,6 +543,8 @@ def create_simulation_bprogram(
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
+    player_0_win_now: bool = False,
+    player_1_win_now: bool = False, # TODO: Hardcoded to true for strategic loss analysis - consider making this more flexible or removing if not needed elsewhere
 ) -> bp.BProgram:
     """
     Create a BProgram configured for simulation.
@@ -539,9 +561,9 @@ def create_simulation_bprogram(
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
         Cards are dealt to the starting player first to ensure fairness.
     player_0_strategy : str
-        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+        Strategy for player 0: "basic", "taki", "taki_and_super_taki", "strategic"
     player_1_strategy : str
-        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "block_super_taki"
+        Strategy for player 1: "basic", "taki", "taki_and_super_taki", "strategic"
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0
     player_1_block_super_taki : bool
@@ -591,6 +613,8 @@ def create_simulation_bprogram(
         bthreads.append(basic_strategy_taki(0, num_cards))
     elif player_0_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy == "strategic":
+        bthreads.append(strategic_taki_strategy(0, num_cards))
     elif player_0_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
     
@@ -598,18 +622,27 @@ def create_simulation_bprogram(
     if player_0_block_super_taki:
         bthreads.append(strategy_block_super_taki_during_regular_taki(0))
     
+    if player_0_win_now:
+        bthreads.append(strategy_win_now_color_selection(0, num_cards))
+
     # Add strategy b-threads for player 1 if not basic
     if player_1_strategy == "taki":
         bthreads.append(basic_strategy_taki(1, num_cards))
     elif player_1_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(1, num_cards))
+    elif player_1_strategy == "strategic":
+        bthreads.append(strategic_taki_strategy(1, num_cards))
     elif player_1_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 1: {player_1_strategy}")
     
     # Add blocking strategy for player 1 if requested
     if player_1_block_super_taki:
         bthreads.append(strategy_block_super_taki_during_regular_taki(1))
-    
+
+    if player_1_win_now:
+        bthreads.append(strategy_win_now_color_selection(1, num_cards))
+
+
     # Create and return the BProgram
     b_program = bp.BProgram(
         bthreads=bthreads,
@@ -643,7 +676,7 @@ def create_simulation_bprogram_basic_vs_external(
     starting_player : int
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
     player_0_strategy : str
-        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
+        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki", "strategic".
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
 
@@ -680,6 +713,9 @@ def create_simulation_bprogram_basic_vs_external(
         bthreads.append(basic_strategy_taki(0, num_cards))
     elif player_0_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy == "strategic":
+        bthreads.append(strategic_taki_strategy(0, num_cards))
+        bthreads.append(strategy_block_super_taki_during_regular_taki(0))
     elif player_0_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
 
@@ -893,6 +929,8 @@ def create_simulation_bprogram_basic_vs_strategy(
     player_0_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_agent=None,
+    player_0_win_now: bool = False,
+    player_1_win_now: bool = False,
 ) -> bp.BProgram:
     """
     Create a BProgram with player 0 using a basic BP strategy and player 1
@@ -909,7 +947,7 @@ def create_simulation_bprogram_basic_vs_strategy(
     starting_player : int
         Which player goes first (0 or 1). Use -1 for random selection based on seed.
     player_0_strategy : str
-        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki".
+        Strategy for the BP player (player 0): "basic", "taki", "taki_and_super_taki", "strategic".
     player_0_block_super_taki : bool
         If True, add strategy_block_super_taki_during_regular_taki for player 0.
     player_1_agent : optional
@@ -947,11 +985,25 @@ def create_simulation_bprogram_basic_vs_strategy(
         bthreads.append(basic_strategy_taki(0, num_cards))
     elif player_0_strategy == "taki_and_super_taki":
         bthreads.append(basic_strategy_taki_and_super_taki(0, num_cards))
+    elif player_0_strategy == "strategic":
+        bthreads.append(strategic_taki_strategy(0, num_cards))
     elif player_0_strategy != "basic":
         raise ValueError(f"Unknown strategy for player 0: {player_0_strategy}")
 
     if player_0_block_super_taki:
         bthreads.append(strategy_block_super_taki_during_regular_taki(0))
+
+
+
+    # after registering player 0 strategic strategy:
+    if player_0_win_now:
+        bthreads.append(strategy_win_now_color_selection(0))
+
+    # after registering player 1 strategic strategy:
+    if player_1_win_now:
+        bthreads.append(strategy_win_now_color_selection(1))
+
+
 
     b_program = bp.BProgram(
         bthreads=bthreads,
@@ -1095,7 +1147,7 @@ def run_simulation_basic_vs_strategy(
     )
     total_scheduled_games = len(schedule)
 
-    print(f"Starting simulation of {total_scheduled_games} games (basic BP vs {player_1_strategy_name})...")
+    print(f"Starting simulation of {total_scheduled_games} games ({player_0_strategy} BP vs {player_1_strategy_name})...")
     print(f"Player 0 strategy: {player_0_strategy}" +
           (" + block_super_taki" if player_0_block_super_taki else ""))
     print(f"Player 1 strategy: {player_1_strategy_name}")
@@ -1147,6 +1199,8 @@ def run_single_game(
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
+    player_0_win_now: bool = False,
+    player_1_win_now: bool = False,
     starting_player: int = 0,
     silent: bool = True
 ) -> Optional[GameResult]:
@@ -1200,6 +1254,8 @@ def run_single_game(
             player_1_strategy=player_1_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
             player_1_block_super_taki=player_1_block_super_taki,
+            player_0_win_now=player_0_win_now,
+            player_1_win_now=player_1_win_now,
         )
         try:
             b_program.run()
@@ -1261,6 +1317,8 @@ def run_simulation(
     player_1_strategy: str = "basic",
     player_0_block_super_taki: bool = False,
     player_1_block_super_taki: bool = False,
+    player_0_win_now: bool = False,
+    player_1_win_now: bool = False,
     silent: bool = True,
     progress_interval: int = 10
 ) -> SimulationStats:
@@ -1341,6 +1399,8 @@ def run_simulation(
             player_1_strategy=player_1_strategy,
             player_0_block_super_taki=player_0_block_super_taki,
             player_1_block_super_taki=player_1_block_super_taki,
+            player_0_win_now=player_0_win_now,
+            player_1_win_now=player_1_win_now,
             starting_player=scheduled_starting_player,
             silent=silent
         )
@@ -1396,36 +1456,53 @@ def save_results(stats: SimulationStats, filename: str = None, player_0_strategy
 
 
 def run_bp_vs_bp_simulation():
-    num_seed_pairs = 5000
-    player_0_strategy = "taki"
-    player_1_strategy = "basic"
+    num_games = 10000
+    player_0_strategy = "basic"
+    player_1_strategy = "strategic"
 
-    stats = run_simulation(
-        num_games=num_seed_pairs,
-        start_seed=0,
-        starting_player=-1,
-        balanced_starting_players=True,
-        mirrored_starting_players=False,
-        player_0_strategy=player_0_strategy,
-        player_1_strategy=player_1_strategy,
-        silent=False,
-        progress_interval=500
-    )
-    
-    # Print summary
-    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
-    print("\n" + summary_text)
-    
-    # Save summary to file with timestamp
-    timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
-    summary_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_stats_summary.txt"
-    with open(summary_filename, 'w') as f:
-        f.write(summary_text)
-    print(f"Summary saved to: {summary_filename}")
-    
-    # Save results
-    json_filename = f"{player_0_strategy}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
-    save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
+    '''
+    conditions = [
+        ("strategic",          False),
+        ("strategic + win_now", True),
+    ]
+    '''
+
+    conditions = [("strategic", False)]
+
+    for label, win_now in conditions:
+        print(f"\n{'=' * 60}")
+        print(f"basic vs {label}  ({num_games} games)")
+        print(f"{'=' * 60}")
+
+        stats = run_simulation(
+            num_games=num_games,
+            start_seed=0,
+            starting_player=-1,
+            balanced_starting_players=True,
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=player_1_strategy,
+            player_1_block_super_taki=True,
+            player_1_win_now=win_now,
+            silent=True,
+            progress_interval=500,
+        )
+
+        summary_text = stats.summary(
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=label,
+        )
+        print("\n" + summary_text)
+
+        timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
+        slug = label.replace(" ", "_").replace("+", "plus")
+        summary_filename = f"basic_vs_{slug}_{timestamp}_stats_summary.txt"
+        with open(summary_filename, "w") as f:
+            f.write(summary_text)
+        print(f"Summary saved to: {summary_filename}")
+
+        json_filename = f"basic_vs_{slug}_{timestamp}_seeds_test.json"
+        save_results(stats, json_filename, player_0_strategy=player_0_strategy,
+                     player_1_strategy=label, timestamp=timestamp)
 
 def run_bp_vs_external_player_simulation():
 
@@ -1445,7 +1522,11 @@ def run_bp_vs_external_player_simulation():
     )
 
     # Print summary
-    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
+    summary_text = stats.summary(
+        player_0_strategy=player_0_strategy,
+        player_1_strategy=player_1_strategy,
+        player_0_block_super_taki=False,
+    )
     print("\n" + summary_text)
 
     # Save summary to file with timestamp
@@ -1460,12 +1541,13 @@ def run_bp_vs_external_player_simulation():
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
 def run_bp_vs_strategy_player_simulation():
-    num_seed_pairs = 10000
-    # Possible values for player_0_strategy: "basic", "taki", "taki_and_super_taki"
+    num_seed_pairs = 1000
+    # Possible values for player_0_strategy: "basic", "taki", "taki_and_super_taki", "strategic"
     # Also, you can send player_0_block_super_taki=True to add the strategy_block_super_taki_during_regular_taki b-thread for player 0
-    player_0_strategy = "basic"
-    player_0_block_super_taki = False
-    player_1_strategy = "random"
+    player_0_strategy = "strategic"
+    player_0_block_super_taki = True
+    player_1_strategy = "strategic"
+    player_1_block_super_taki = True
 
     stats = run_simulation_basic_vs_strategy(
         num_games=num_seed_pairs,
@@ -1482,7 +1564,11 @@ def run_bp_vs_strategy_player_simulation():
     )
 
     # Print summary
-    summary_text = stats.summary(player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy)
+    summary_text = stats.summary(
+        player_0_strategy=player_0_strategy,
+        player_1_strategy=player_1_strategy,
+        player_0_block_super_taki=(player_0_strategy == "strategic" or player_0_block_super_taki),
+    )
     print("\n" + summary_text)
 
     # Save summary to file with timestamp
@@ -1497,10 +1583,148 @@ def run_bp_vs_strategy_player_simulation():
     json_filename = f"{player_0_label}_vs_{player_1_strategy}_{timestamp}_seeds_test.json"
     save_results(stats, json_filename, player_0_strategy=player_0_strategy, player_1_strategy=player_1_strategy, timestamp=timestamp)
 
+'''
+def run_strategic_vs_heuristics_simulation():
+    num_games = 10000
+    player_0_strategy = "strategic"
+    player_0_block_super_taki = False
+
+    for agent_class, label in [
+        (PythonAgent, "python_random"),
+        (TakiStrategyAgentV1, "heuristic_v1"),
+        (TakiStrategyAgentV2, "heuristic_v2"),
+        (TakiStrategyAgentV3, "heuristic_v3"),
+    ]:
+        print(f"\n{'=' * 60}")
+        print(f"Running: {player_0_strategy} (BP) vs {label} (Python)")
+        print(f"{'=' * 60}")
+
+        stats = run_simulation_basic_vs_strategy(
+            num_games=num_games,
+            start_seed=0,
+            starting_player=-1,
+            balanced_starting_players=True,
+            mirrored_starting_players=False,
+            player_0_strategy=player_0_strategy,
+            player_0_block_super_taki=player_0_block_super_taki,
+            player_1_agent=agent_class(),
+            player_1_strategy_name=label,
+            silent=True,
+            progress_interval=500,
+        )
+
+        summary_text = stats.summary(
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=label,
+            player_0_block_super_taki=player_0_block_super_taki,
+        )
+        print("\n" + summary_text)
+
+        timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
+        summary_filename = f"{player_0_strategy}_vs_{label}_{timestamp}_stats_summary.txt"
+        with open(summary_filename, "w") as f:
+            f.write(summary_text)
+        print(f"Summary saved to: {summary_filename}")
+
+        json_filename = f"{player_0_strategy}_vs_{label}_{timestamp}_seeds_test.json"
+        save_results(
+            stats,
+            json_filename,
+            player_0_strategy=player_0_strategy,
+            player_1_strategy=label,
+            timestamp=timestamp,
+        )
+'''
+
+def _run_single_matchup(args):
+    """
+    Top-level function for multiprocessing — runs a full simulation of one
+    BP strategy vs one Python agent matchup and saves results to disk.
+
+    Must be a top-level function (not nested) for multiprocessing pickling.
+    Progress is written to a per-process log file (progress_{label}.log)
+    so it can be monitored live with: tail -f progress_{label}.log
+    """
+    agent_class, label, num_games, player_0_strategy, player_0_block_super_taki = args
+
+    import sys
+    log_filename = f"progress_{label}.log"
+
+    with open(log_filename, "w", buffering=1) as log:  # buffering=1 = line-buffered
+        old_stdout = sys.stdout
+        sys.stdout = log
+
+        try:
+            stats = run_simulation_basic_vs_strategy(
+                num_games=num_games,
+                start_seed=0,
+                starting_player=-1,
+                balanced_starting_players=True,
+                mirrored_starting_players=False,
+                player_0_strategy=player_0_strategy,
+                player_0_block_super_taki=player_0_block_super_taki,
+                player_1_agent=agent_class(),
+                player_1_strategy_name=label,
+                silent=True,
+                progress_interval=500,
+            )
+
+        finally:
+            sys.stdout = old_stdout
+
+    # Build summary
+    summary_text = stats.summary(
+        player_0_strategy=player_0_strategy,
+        player_1_strategy=label,
+        player_0_block_super_taki=player_0_block_super_taki,
+    )
+
+    # Save summary — label in filename guarantees uniqueness across parallel workers
+    timestamp = f"{datetime.now().strftime('%H-%M-%S_%d-%m-%Y')}"
+    summary_filename = f"{player_0_strategy}_vs_{label}_{timestamp}_stats_summary.txt"
+    with open(summary_filename, "w") as f:
+        f.write(summary_text)
+
+    json_filename = f"{player_0_strategy}_vs_{label}_{timestamp}_seeds_test.json"
+    save_results(
+        stats,
+        json_filename,
+        player_0_strategy=player_0_strategy,
+        player_1_strategy=label,
+        timestamp=timestamp,
+    )
+
+    return label, summary_text
+
+def run_strategic_vs_heuristics_simulation():
+    num_games = 10000
+    player_0_strategy = "strategic"
+    player_0_block_super_taki = False
+
+    matchups = [
+        # (PythonAgent,          "python_random",  num_games, player_0_strategy, player_0_block_super_taki),
+        (TakiStrategyAgentV1, "heuristic_v1",   num_games, player_0_strategy, player_0_block_super_taki),
+        (TakiStrategyAgentV2, "heuristic_v2",   num_games, player_0_strategy, player_0_block_super_taki),
+        (TakiStrategyAgentV3, "heuristic_v3",   num_games, player_0_strategy, player_0_block_super_taki),
+    ]
+
+    num_workers = min(len(matchups), multiprocessing.cpu_count())
+    print(f"Running {len(matchups)} matchups in parallel using {num_workers} workers...")
+
+    with Pool(processes=num_workers) as pool:
+        results = pool.map(_run_single_matchup, matchups)
+
+    print("\n" + "=" * 60)
+    print("ALL MATCHUPS COMPLETE")
+    print("=" * 60)
+    for label, summary_text in results:
+        print(f"\n--- {label} ---")
+        print(summary_text)
+        
 
 if __name__ == "__main__":
-    # run_bp_vs_bp_simulation()
+    run_bp_vs_bp_simulation()
     # run_bp_vs_external_player_simulation()
-    run_bp_vs_strategy_player_simulation()
-
+    # run_bp_vs_strategy_player_simulation()
+    # run_strategic_vs_heuristics_simulation()
     
