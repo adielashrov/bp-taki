@@ -621,6 +621,68 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
+@bp.thread
+def change_color_strategy(index, num_of_cards=2):
+    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
+    card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+    for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        if not is_change_color_event(BPEvent(card_name)):
+            card_events.append(BPEvent(card_name, priority=9.0)) # priority=9.0 beats change_color's 10.0, so regular cards are always preferred
+        else: # card is change_color_event
+            card_events.append(BPEvent(card_name, priority=10.0)) # priority=10.0 - last resort; only selected when no regular/action cards remain
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+
+    while True:
+        card_event = yield bp.sync(request=card_events, waitFor=draw_card_event)
+
+        if is_regular_card_event(card_event):
+            card_events.remove(card_event)
+        elif is_draw_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            if not is_change_color_event(BPEvent(card_name)):
+                card_events.append(BPEvent(card_name, priority=9.0))
+            else: # card is change_color_event
+                card_events.append(BPEvent(card_name, priority=10.0))
+        elif is_action_card_event(card_event):
+            if is_any_taki_event(card_event):
+                card_events.remove(card_event)
+                closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+                card_events.append(closed_taki_event)
+
+                while True:
+                    card_event = yield bp.sync(waitFor=card_events)
+                    card_events.remove(card_event)
+                    if card_event.name == f"p_{index}_closed_taki":
+                        break
+
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                
+            elif is_change_color_event(card_event):
+                card_events.remove(card_event)
+                selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
+                selected_color_event = yield bp.sync(waitFor=selected_color_events)
+                logger.debug(f"[CHANGE_COLOR_PLAYER_{index}] Selected color: {selected_color_event.name.removeprefix('selected_')}")
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+            else:
+                yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
+                card_events.remove(card_event)
+
+        if list_does_not_contain_card_events(card_events):
+            yield bp.sync(waitFor=BPEvent(f"p_{index}_no_more_cards", priority=8.0))
+            break
+        else:
+            yield bp.sync(waitFor=BPEvent("next_turn", priority=10.0))
+
+
 def is_selected_color_event(event: BPEvent) -> bool:
     return hasattr(event, "name") and event.name.startswith("selected_")
 
@@ -1548,8 +1610,11 @@ def init_b_program(starting_player=1):
         game_manager(),
         deal_cards(2, NUM_OF_CARDS, starting_player),
         player_behavior(0, NUM_OF_CARDS),
-        player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
-        basic_strategy_taki(0, NUM_OF_CARDS),
+        player_behavior(1, NUM_OF_CARDS),
+        change_color_strategy(0, NUM_OF_CARDS),
+        change_color_strategy(1, NUM_OF_CARDS),
+        # player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
+        # basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
         block_next_turn_during_open_taki(1),
         enforce_turns(2, starting_player),
