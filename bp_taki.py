@@ -683,6 +683,63 @@ def change_color_strategy(index, num_of_cards=2):
             yield bp.sync(waitFor=BPEvent("next_turn", priority=10.0))
 
 
+@bp.thread
+def most_popular_color_selection_strategy(index, num_of_cards=2):
+    """
+    When the player plays a change_color card, selects the color most
+    represented in their current hand. Ties are broken by the order in COLORS.
+    Observes the same deal/draw events as track_player_hand_and_announce_no_more_cards
+    to maintain an accurate hand state.
+    """
+    all_card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+
+    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
+
+    for i in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    all_card_events.append(draw_card_event)
+    all_card_events.append(BPEvent(f"p_{index}_closed_taki", priority=15.0))
+    
+
+    while True:
+        card_event = yield bp.sync(waitFor=all_card_events)
+
+        if is_draw_card_event(card_event):
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+
+        elif card_event in all_card_events:
+            all_card_events.remove(card_event)
+
+            if is_change_color_event(card_event):
+                # Count colors in remaining hand (excluding change_color and non-colored cards)
+                color_counts = {color: 0 for color in COLORS}
+                for e in all_card_events:
+                    color, _ = extract_card_color_and_type(e)
+                    if color in COLORS:
+                        color_counts[color] += 1
+
+                most_popular_color = max(COLORS, key=lambda c: color_counts[c])
+                logger.debug(f"[STRATEGY_COLOR_SELECTION] Player {index}: color counts={color_counts}, selecting={most_popular_color}")
+
+                selected_event = BPEvent(f"selected_{most_popular_color}", priority=5.0)
+                other_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS if c != most_popular_color]
+                yield bp.sync(request=selected_event, block=other_color_events)
+
+        elif is_no_more_cards_event(card_event):
+            break
+
+
 def is_selected_color_event(event: BPEvent) -> bool:
     return hasattr(event, "name") and event.name.startswith("selected_")
 
@@ -1612,7 +1669,9 @@ def init_b_program(starting_player=1):
         player_behavior(0, NUM_OF_CARDS),
         player_behavior(1, NUM_OF_CARDS),
         change_color_strategy(0, NUM_OF_CARDS),
+        most_popular_color_selection_strategy(0, NUM_OF_CARDS),
         change_color_strategy(1, NUM_OF_CARDS),
+        most_popular_color_selection_strategy(1, NUM_OF_CARDS),
         # player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
         # basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
