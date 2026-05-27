@@ -313,6 +313,19 @@ class DealCardsEventSet(bp.EventSet):
                 f"DealCardsEventSet: Expected item of type BPEvent, got {type(item)}")
 
 
+class AllRegularCardsOfIndexAndColor(bp.EventSet):
+    def __init__(self, index: int, color: str):
+        self.pattern = rf"^p_{index}_card_\d+_{color}$"
+        super().__init__(lambda e: isinstance(e, BPEvent) and re.match(self.pattern, e.name) is not None)
+
+    def __contains__(self, item):
+        if isinstance(item, BPEvent):
+            return re.match(self.pattern, item.name) is not None
+        else:
+            raise TypeError(
+                f"AllRegularCardsOfIndexAndColor: Expected item of type BPEvent, got {type(item)}")
+
+
 def init_cards_events():
 
     all_cards = []
@@ -619,6 +632,35 @@ def player_behavior(index, num_of_cards=2):
             break
         else: # else announce that you have finished your turn.
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
+
+
+@bp.thread
+def prefer_stop_over_regular_cards_strategy(index, color):
+
+    num_of_stops_in_color = 0
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
+    while True:
+        if num_of_stops_in_color == 0:
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            last_event = yield bp.sync(waitFor=DealCardsEventSet())
+            if last_event.name == f"deal_p_stop_{color}":
+                num_of_stops_in_color += 1
+        else:
+            last_event = yield bp.sync(waitFor=[BPEvent(f"p_{index}_stop_{color}"),
+                                                BPEvent(f"deal_cards_to_player_{index}"),
+                                                BPEvent(f"p_{index}_taki_{color}"),
+                                                BPEvent(f"p_{index}_super_taki")],
+                                        block=AllRegularCardsOfIndexAndColor(index, color))
+            if last_event.name == f"p_{index}_stop_{color}":
+                num_of_stops_in_color -= 1
+            elif is_any_taki_event(last_event):
+                # TAKI sequence started — lift the block until it closes
+                yield bp.sync(waitFor=BPEvent(f"p_{index}_closed_taki"))
+                # block is not active during this wait, so regular cards can be played freely in the sequence
+            else:  # deal_cards_to_player_{index}
+                last_event = yield bp.sync(waitFor=DealCardsEventSet())
+                if last_event.name == f"deal_p_stop_{color}":
+                    num_of_stops_in_color += 1
 
 
 @bp.thread
@@ -1613,6 +1655,7 @@ def init_b_program(starting_player=1):
         player_behavior(1, NUM_OF_CARDS),
         change_color_strategy(0, NUM_OF_CARDS),
         change_color_strategy(1, NUM_OF_CARDS),
+        prefer_stop_over_regular_cards_strategy(0, "red"),
         # player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
         # basic_strategy_taki(0, NUM_OF_CARDS),
         block_next_turn_during_open_taki(0),
