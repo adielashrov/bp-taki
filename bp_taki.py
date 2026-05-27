@@ -669,7 +669,7 @@ def change_color_strategy(index, num_of_cards=2):
             elif is_change_color_event(card_event):
                 card_events.remove(card_event)
                 selected_color_events = [BPEvent(f"selected_{c}", priority=5.0) for c in COLORS]
-                selected_color_event = yield bp.sync(waitFor=selected_color_events)
+                selected_color_event = yield bp.sync(request=selected_color_events)
                 logger.debug(f"[CHANGE_COLOR_PLAYER_{index}] Selected color: {selected_color_event.name.removeprefix('selected_')}")
                 yield bp.sync(waitFor=BPEvent("done_post_action", priority=10.0))
             else:
