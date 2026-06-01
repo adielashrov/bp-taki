@@ -20,7 +20,7 @@ NUM_OF_PLAYERS = 2
 COLORS = ["red", "blue", "green"]
 
 # Control the randomness of card dealing
-SEED = 5 # good seeds for change color: 2, 4, a bug in 5
+SEED = 7 # good seeds for change color: 2, 4, a bug in 5
 
 LOG_LEVEL = logging.DEBUG
 
@@ -660,34 +660,17 @@ def prefer_stop_over_regular_cards_strategy(index, color):
     not legal yet. The current implementation still blocks card_4_red because
     it only tracks whether a stop card of that color is in hand.
     """
-    TAG = f"[STOP_STRATEGY p_{index} {color}]"
-    logger.debug(f"{TAG} B-thread started — waiting for dealing phase")
 
     num_of_stops_in_color = 0
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
-    logger.debug(f"{TAG} Dealing started — monitoring for stop_{color} cards")
 
     while True:
         if num_of_stops_in_color == 0:
-            # No stop cards in hand: passively observe the deal stream
-            logger.debug(f"{TAG} STATE=monitoring (no stop_{color} in hand) — waiting for next deal")
             yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
             last_event = yield bp.sync(waitFor=DealCardsEventSet())
             if last_event.name == f"deal_p_stop_{color}":
                 num_of_stops_in_color += 1
-                logger.info(
-                    f"{TAG} stop_{color} dealt → num_of_stops_in_color={num_of_stops_in_color}. "
-                    f"BLOCK on regular {color} cards now ACTIVE"
-                )
-            else:
-                logger.debug(f"{TAG} Dealt non-stop card: {last_event.name} — block stays inactive")
-        else:
-            # Have stop card(s) — block regular same-color cards until stop is played
-            logger.debug(
-                f"{TAG} STATE=blocking (num_of_stops_in_color={num_of_stops_in_color}) "
-                f"— blocking AllRegularCardsOfIndexAndColor(p_{index}, {color}), "
-                f"waiting for: stop_{color} | deal | taki_{color} | super_taki"
-            )
+        else: # Have stop card(s) — block regular same-color cards until stop is played
             last_event = yield bp.sync(
                 waitFor=[
                     BPEvent(f"p_{index}_stop_{color}"),
@@ -697,47 +680,20 @@ def prefer_stop_over_regular_cards_strategy(index, color):
                 ],
                 block=AllRegularCardsOfIndexAndColor(index, color),
             )
-            logger.debug(f"{TAG} Unblocked by event: {last_event.name}")
 
             if last_event.name == f"p_{index}_stop_{color}":
                 num_of_stops_in_color -= 1
-                logger.info(
-                    f"{TAG} stop_{color} PLAYED ✓ → num_of_stops_in_color={num_of_stops_in_color}. "
-                    f"{'BLOCK lifted' if num_of_stops_in_color == 0 else 'BLOCK still active'}"
-                )
             elif is_any_taki_event(last_event):
-                taki_type = "super_taki" if is_super_taki_event(last_event) else f"taki_{color}"
-                logger.debug(
-                    f"{TAG} {taki_type} started — LIFTING block until closed_taki "
-                    f"(regular {color} cards may be played freely inside TAKI sequence)"
-                )
                 while True:
-                    taki_event = yield bp.sync(waitFor=bp.All())
-                    if taki_event.name == f"p_{index}_closed_taki":
-                        logger.debug(
-                            f"{TAG} closed_taki received — RESTORING block "
-                            f"(num_of_stops_in_color={num_of_stops_in_color})"
-                        )
+                    last_event = yield bp.sync(waitFor=bp.All())
+                    if last_event.name == f"p_{index}_closed_taki":
                         break
-                    if taki_event.name == f"p_{index}_stop_{color}":
+                    if last_event.name == f"p_{index}_stop_{color}":
                         num_of_stops_in_color -= 1
-                        logger.info(
-                            f"{TAG} stop_{color} played inside TAKI → "
-                            f"num_of_stops_in_color={num_of_stops_in_color}"
-                        )
             else:  # deal_cards_to_player_{index}
                 last_event = yield bp.sync(waitFor=DealCardsEventSet())
                 if last_event.name == f"deal_p_stop_{color}":
                     num_of_stops_in_color += 1
-                    logger.info(
-                        f"{TAG} Additional stop_{color} dealt → "
-                        f"num_of_stops_in_color={num_of_stops_in_color}"
-                    )
-                else:
-                    logger.debug(
-                        f"{TAG} Non-stop card dealt while blocking: {last_event.name} "
-                        f"(num_of_stops_in_color stays {num_of_stops_in_color})"
-                    )
 
 
 @bp.thread
