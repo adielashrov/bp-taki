@@ -324,10 +324,7 @@ class AllRegularCardsOfIndexAndColor(bp.EventSet):
         if isinstance(item, BPEvent):
             matched = re.match(self.pattern, item.name) is not None
             if matched:
-                logger.debug(
-                    f"[REGULAR_CARD_BLOCK] BLOCKING p_{self.index} regular {self.color} card: "
-                    f"{item.name} matches pattern '{self.pattern}'"
-                )
+                logger.debug("[REGULAR_CARD_BLOCK] BLOCKING p_%s regular %s card: %s matches pattern '%s'", self.index, self.color, item.name, self.pattern)
             return matched
         else:
             raise TypeError(
