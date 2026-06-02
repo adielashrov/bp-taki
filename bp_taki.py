@@ -688,7 +688,7 @@ def most_popular_color_selection_strategy(index, num_of_cards=2):
     """
     When the player plays a change_color card, selects the color most
     represented in their current hand. Ties are broken by the order in COLORS.
-    Observes the same deal/draw events as track_player_hand_and_announce_no_more_cards
+    Tracks the player's hand by observing the same deal/draw protocol as player_behavior
     to maintain an accurate hand state.
     """
     all_card_events = []
