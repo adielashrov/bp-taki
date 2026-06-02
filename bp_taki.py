@@ -694,7 +694,7 @@ def most_popular_color_selection_strategy(index, num_of_cards=2):
     all_card_events = []
     deal_player_cards_event_set = DealCardsEventSet()
 
-    yield bp.sync(waitFor=BPEvent(f"start_dealing_cards_to_players", priority=10.0))
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
 
     for i in range(num_of_cards):
         yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
@@ -707,7 +707,7 @@ def most_popular_color_selection_strategy(index, num_of_cards=2):
     draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
     all_card_events.append(draw_card_event)
     all_card_events.append(BPEvent(f"p_{index}_closed_taki", priority=15.0))
-    
+    all_card_events.append(BPEvent(f"p_{index}_no_more_cards", priority=8.0))
 
     while True:
         card_event = yield bp.sync(waitFor=all_card_events)
@@ -719,7 +719,8 @@ def most_popular_color_selection_strategy(index, num_of_cards=2):
             all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
 
         elif card_event in all_card_events:
-            all_card_events.remove(card_event)
+            if card_event.name != f"p_{index}_closed_taki": # closed_taki is not really a card in hand, it's just a marker for being in a TAKI sequence
+                all_card_events.remove(card_event)
 
             if is_change_color_event(card_event):
                 # Count colors in remaining hand (excluding change_color and non-colored cards)
