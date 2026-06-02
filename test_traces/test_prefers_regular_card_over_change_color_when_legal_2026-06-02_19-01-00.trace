@@ -1,0 +1,27 @@
+# Test: test_prefers_regular_card_over_change_color_when_legal
+# Timestamp: 2026-06-02_19-01-00
+# -------------------------
+start_dealing_cards_to_players
+deal_cards_to_player_0
+deal_p_change_color
+deal_cards_to_player_1
+deal_p_card_4_red
+deal_cards_to_player_0
+deal_p_card_4_blue
+deal_cards_to_player_1
+deal_p_card_1_green
+finished_dealing_cards_to_players
+deal_leading_card
+deal_p_card_5_blue
+leading_deal_p_card_5_blue
+finished_leading_card
+start_game
+p_0_card_4_blue
+next_turn
+p_1_card_4_red
+next_turn
+p_0_change_color
+selected_blue
+done_post_action
+p_0_no_more_cards
+end_game
