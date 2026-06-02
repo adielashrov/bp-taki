@@ -718,10 +718,9 @@ def most_popular_color_selection_strategy(index, num_of_cards=2):
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
 
-        elif card_event in all_card_events:
+        elif card_event in all_card_events and not is_no_more_cards_event(card_event):
             if card_event.name != f"p_{index}_closed_taki": # closed_taki is not really a card in hand, it's just a marker for being in a TAKI sequence
                 all_card_events.remove(card_event)
-
             if is_change_color_event(card_event):
                 # Count colors in remaining hand (excluding change_color and non-colored cards)
                 color_counts = {color: 0 for color in COLORS}
