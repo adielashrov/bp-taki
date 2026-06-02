@@ -1,0 +1,35 @@
+# Test: test_selects_most_common_remaining_color
+# Timestamp: 2026-06-02_18-58-43
+# -------------------------
+start_dealing_cards_to_players
+deal_cards_to_player_0
+deal_p_change_color
+deal_cards_to_player_1
+deal_p_card_1_green
+deal_cards_to_player_0
+deal_p_card_1_green
+deal_cards_to_player_1
+deal_p_card_7_green
+deal_cards_to_player_0
+deal_p_card_7_green
+deal_cards_to_player_1
+deal_p_card_4_red
+finished_dealing_cards_to_players
+deal_leading_card
+deal_p_card_5_blue
+leading_deal_p_card_5_blue
+finished_leading_card
+start_game
+p_0_change_color
+selected_green
+done_post_action
+next_turn
+p_1_card_1_green
+next_turn
+p_0_card_1_green
+next_turn
+p_1_card_7_green
+next_turn
+p_0_card_7_green
+p_0_no_more_cards
+end_game
