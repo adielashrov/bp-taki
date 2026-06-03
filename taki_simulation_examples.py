@@ -5,7 +5,7 @@ Simple example of running Taki game simulations.
 This script demonstrates basic usage of the simulation module.
 """
 
-from taki_simulation import run_simulation, save_results
+from taki_simulation import run_simulation, save_results, PlayerStrategyConfig
 
 
 def example_basic_simulation():
@@ -16,9 +16,9 @@ def example_basic_simulation():
     stats = run_simulation(
         num_games=50,
         start_seed=0,
-        player_0_strategy="taki_and_super_taki",
-        player_1_strategy="basic",
-        silent=True
+        player_0_config=PlayerStrategyConfig(base_strategy="taki_and_super_taki"),
+        player_1_config=PlayerStrategyConfig(base_strategy="basic"),
+        silent=True,
     )
     
     print("\n" + stats.summary())
@@ -36,20 +36,20 @@ def example_strategy_comparison():
         ("taki_and_super_taki", "basic", "Taki+SuperTaki vs Basic"),
         ("taki_and_super_taki", "taki", "Taki+SuperTaki vs Taki"),
     ]
-    
+
     results = []
-    
+
     for p0_strat, p1_strat, label in configurations:
         print(f"\n{label}")
         print("-" * 60)
-        
+
         stats = run_simulation(
             num_games=30,
             start_seed=1000,  # Use consistent seeds for fair comparison
-            player_0_strategy=p0_strat,
-            player_1_strategy=p1_strat,
+            player_0_config=PlayerStrategyConfig(base_strategy=p0_strat),
+            player_1_config=PlayerStrategyConfig(base_strategy=p1_strat),
             silent=True,
-            progress_interval=15
+            progress_interval=15,
         )
         
         print(stats.summary())
@@ -73,10 +73,10 @@ def example_large_simulation():
     stats = run_simulation(
         num_games=200,
         start_seed=42,
-        player_0_strategy="taki_and_super_taki",
-        player_1_strategy="taki",
+        player_0_config=PlayerStrategyConfig(base_strategy="taki_and_super_taki"),
+        player_1_config=PlayerStrategyConfig(base_strategy="taki"),
         silent=True,
-        progress_interval=25
+        progress_interval=25,
     )
     
     print("\n" + stats.summary())
@@ -110,10 +110,10 @@ def example_seed_exploration():
         stats = run_simulation(
             num_games=30,
             start_seed=start_seed,
-            player_0_strategy="taki_and_super_taki",
-            player_1_strategy="basic",
+            player_0_config=PlayerStrategyConfig(base_strategy="taki_and_super_taki"),
+            player_1_config=PlayerStrategyConfig(base_strategy="basic"),
             silent=True,
-            progress_interval=30
+            progress_interval=30,
         )
         
         print(f"{label:<20} {stats.player_0_wins:>10} {stats.player_1_wins:>10} "
@@ -131,47 +131,37 @@ def example_block_super_taki_strategy():
     configurations = [
         {
             "label": "Baseline: Taki+SuperTaki vs Basic",
-            "p0_strategy": "taki_and_super_taki",
-            "p1_strategy": "basic",
-            "p0_block": False,
-            "p1_block": False
+            "p0_config": PlayerStrategyConfig(base_strategy="taki_and_super_taki"),
+            "p1_config": PlayerStrategyConfig(base_strategy="basic"),
         },
         {
             "label": "P0 blocks Super TAKI during regular TAKI",
-            "p0_strategy": "taki_and_super_taki",
-            "p1_strategy": "basic",
-            "p0_block": True,
-            "p1_block": False
+            "p0_config": PlayerStrategyConfig(base_strategy="taki_and_super_taki", block_super_taki=True),
+            "p1_config": PlayerStrategyConfig(base_strategy="basic"),
         },
         {
             "label": "Both players: Taki strategy with blocking",
-            "p0_strategy": "taki",
-            "p1_strategy": "taki",
-            "p0_block": True,
-            "p1_block": True
+            "p0_config": PlayerStrategyConfig(base_strategy="taki", block_super_taki=True),
+            "p1_config": PlayerStrategyConfig(base_strategy="taki", block_super_taki=True),
         },
         {
             "label": "P0: Full strategy + block, P1: Basic",
-            "p0_strategy": "taki_and_super_taki",
-            "p1_strategy": "basic",
-            "p0_block": True,
-            "p1_block": False
-        }
+            "p0_config": PlayerStrategyConfig(base_strategy="taki_and_super_taki", block_super_taki=True),
+            "p1_config": PlayerStrategyConfig(base_strategy="basic"),
+        },
     ]
-    
+
     print(f"{'Configuration':<45} {'P0 Wins':>10} {'P1 Wins':>10} {'P0 %':>8}")
     print("-" * 75)
-    
+
     for config in configurations:
         stats = run_simulation(
             num_games=50,
             start_seed=2000,  # Use consistent seeds
-            player_0_strategy=config["p0_strategy"],
-            player_1_strategy=config["p1_strategy"],
-            player_0_block_super_taki=config["p0_block"],
-            player_1_block_super_taki=config["p1_block"],
+            player_0_config=config["p0_config"],
+            player_1_config=config["p1_config"],
             silent=True,
-            progress_interval=50
+            progress_interval=50,
         )
         
         print(f"{config['label']:<45} {stats.player_0_wins:>10} {stats.player_1_wins:>10} "
