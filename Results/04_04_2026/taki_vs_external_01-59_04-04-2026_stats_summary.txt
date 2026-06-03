@@ -21,25 +21,25 @@ Starting Player Analysis:
   Games where P1 started: 250
   Starting player won: 254/500 (50.8%)
 
-Player 0 — Starting Position vs Outcome (2x2):
+Player 0 â€” Starting Position vs Outcome (2x2):
 
                  |  P0 Wins | P0 Not Win
 -----------------+----------+------------
 P0 started       |      159 |         91
 P0 started second|      155 |         95
 
-Player 1 — Starting Position vs Outcome (2x2):
+Player 1 â€” Starting Position vs Outcome (2x2):
 
                  |  P1 Wins | P1 Not Win
 -----------------+----------+------------
 P1 started       |       95 |        155
 P1 started second|       91 |        159
 
-Player 0 — Win Rates with 95% CI:
+Player 0 â€” Win Rates with 95% CI:
   When starting:  63.6% [ 57.5%,  69.3%]
   When second:   62.0% [ 55.8%,  67.8%]
 
-Player 1 — Win Rates with 95% CI:
+Player 1 â€” Win Rates with 95% CI:
   When starting:  38.0% [ 32.2%,  44.2%]
   When second:   36.4% [ 30.7%,  42.5%]
 ============================================================

@@ -16,25 +16,25 @@ Draws: 0 | Deadlocks: 0 | Errors: 17
 
 Average Events per Game: 93.6
 
-Player 0 — Starting Position vs Outcome (2x2):
+Player 0 â€” Starting Position vs Outcome (2x2):
 
                  |  P0 Wins | P0 Not Win
 -----------------+----------+------------
 P0 started       |        0 |          0
 P0 started second|     2339 |       2644
 
-Player 1 — Starting Position vs Outcome (2x2):
+Player 1 â€” Starting Position vs Outcome (2x2):
 
                  |  P1 Wins | P1 Not Win
 -----------------+----------+------------
 P1 started       |     2644 |       2339
 P1 started second|        0 |          0
 
-Player 0 — Win Rates with 95% CI:
+Player 0 â€” Win Rates with 95% CI:
   When starting:   0.0% [  0.0%,   0.0%]
   When second:   46.9% [ 45.6%,  48.3%]
 
-Player 1 — Win Rates with 95% CI:
+Player 1 â€” Win Rates with 95% CI:
   When starting:  53.1% [ 51.7%,  54.4%]
   When second:    0.0% [  0.0%,   0.0%]
 ============================================================
