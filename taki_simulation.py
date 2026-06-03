@@ -1394,8 +1394,8 @@ def run_bp_vs_bp_simulation():
 
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
     summary_filename = f"{p0_label}_vs_{p1_label}_{timestamp}_stats_summary.txt"
-    with open(summary_filename, 'w') as f:
-        f.write(summary_text)
+    with open(summary_filename, 'w', encoding='utf-8') as f:
+        f.write(summary_text + '\n')
     print(f"Summary saved to: {summary_filename}")
 
     json_filename = f"{p0_label}_vs_{p1_label}_{timestamp}_seeds_test.json"
@@ -1430,8 +1430,8 @@ def run_bp_vs_external_player_simulation():
 
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
     summary_filename = f"{p0_label}_vs_{player_1_label}_{timestamp}_stats_summary.txt"
-    with open(summary_filename, 'w') as f:
-        f.write(summary_text)
+    with open(summary_filename, 'w', encoding='utf-8') as f:
+        f.write(summary_text + '\n')
     print(f"Summary saved to: {summary_filename}")
 
     json_filename = f"{p0_label}_vs_{player_1_label}_{timestamp}_seeds_test.json"
@@ -1464,8 +1464,8 @@ def run_bp_vs_strategy_player_simulation():
 
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
     summary_filename = f"{p0_label}_vs_{player_1_strategy_name}_{timestamp}_stats_summary.txt"
-    with open(summary_filename, 'w') as f:
-        f.write(summary_text)
+    with open(summary_filename, 'w', encoding='utf-8') as f:
+        f.write(summary_text + '\n')
     print(f"Summary saved to: {summary_filename}")
 
     json_filename = f"{p0_label}_vs_{player_1_strategy_name}_{timestamp}_seeds_test.json"
@@ -1510,8 +1510,8 @@ def run_players_simulation():
 
     timestamp = datetime.now().strftime("%H-%M_%d-%m-%Y")
     summary_filename = f"{p0_label}_vs_{p1_label}_{timestamp}_stats_summary.txt"
-    with open(summary_filename, 'w') as f:
-        f.write(summary_text)
+    with open(summary_filename, 'w', encoding='utf-8') as f:
+        f.write(summary_text + '\n')
     print(f"Summary saved to: {summary_filename}")
 
     json_filename = f"{p0_label}_vs_{p1_label}_{timestamp}_seeds_test.json"
