@@ -567,7 +567,7 @@ def create_simulation_bprogram(
     starting_player: int = 0,
     player_0_config: PlayerStrategyConfig = None,
     player_1_config: PlayerStrategyConfig = None,
-) -> bp.BProgram:
+) -> Tuple[bp.BProgram, int]:
     """
     Create a BProgram configured for simulation.
 
@@ -644,7 +644,7 @@ def create_simulation_bprogram_basic_vs_external(
     num_cards: int = NUM_OF_CARDS,
     starting_player: int = -1,
     player_0_config: PlayerStrategyConfig = None,
-) -> bp.BProgram:
+) -> Tuple[bp.BProgram, int]:
     """
     Create a BProgram with player 0 using BP strategies and player 1
     using the external Python agent (player_behavior_external).
@@ -896,7 +896,7 @@ def create_simulation_bprogram_basic_vs_strategy(
     starting_player: int = -1,
     player_0_config: PlayerStrategyConfig = None,
     player_1_agent=None,
-) -> bp.BProgram:
+) -> Tuple[bp.BProgram, int]:
     """
     Create a BProgram with player 0 using BP strategies and player 1
     using a Python agent (defaults to PythonAgent random policy).
