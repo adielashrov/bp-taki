@@ -1,6 +1,6 @@
 import unittest
 
-from taki_simulation import run_single_game, run_single_game_basic_vs_external
+from taki_simulation import run_single_game, run_single_game_basic_vs_external, PlayerStrategyConfig
 
 
 class TestLeadingCardFallback(unittest.TestCase):
@@ -17,8 +17,8 @@ class TestLeadingCardFallback(unittest.TestCase):
                 result = run_single_game(
                     game_number=seed,
                     seed=seed,
-                    player_0_strategy="basic",
-                    player_1_strategy="basic",
+                    player_0_config=PlayerStrategyConfig(base_strategy="basic"),
+                    player_1_config=PlayerStrategyConfig(base_strategy="basic"),
                     starting_player=-1,
                     silent=True,
                 )
@@ -30,7 +30,7 @@ class TestLeadingCardFallback(unittest.TestCase):
                 result = run_single_game_basic_vs_external(
                     game_number=seed,
                     seed=seed,
-                    player_0_strategy="basic",
+                    player_0_config=PlayerStrategyConfig(base_strategy="basic"),
                     starting_player=-1,
                     silent=True,
                 )

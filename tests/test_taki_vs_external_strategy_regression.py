@@ -5,6 +5,7 @@ from taki_simulation import (
     SimulationListener,
     create_simulation_bprogram_basic_vs_external,
     run_single_game_basic_vs_external,
+    PlayerStrategyConfig,
 )
 
 
@@ -31,7 +32,7 @@ class TestTakiVsExternalStrategyRegression(unittest.TestCase):
                 result = run_single_game_basic_vs_external(
                     game_number=seed + 1,
                     seed=seed,
-                    player_0_strategy="taki",
+                    player_0_config=PlayerStrategyConfig(base_strategy="taki"),
                     starting_player=seed_to_start[seed],
                     silent=True,
                 )
@@ -43,7 +44,7 @@ class TestTakiVsExternalStrategyRegression(unittest.TestCase):
         result = run_single_game_basic_vs_external(
             game_number=7,
             seed=3,
-            player_0_strategy="taki",
+            player_0_config=PlayerStrategyConfig(base_strategy="taki"),
             starting_player=0,
             silent=True,
         )
@@ -56,7 +57,7 @@ class TestTakiVsExternalStrategyRegression(unittest.TestCase):
             seed=3,
             listener=listener,
             starting_player=0,
-            player_0_strategy="taki",
+            player_0_config=PlayerStrategyConfig(base_strategy="taki"),
         )
         self.assertEqual(actual_starting_player, 0)
 
