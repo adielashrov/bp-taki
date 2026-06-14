@@ -639,58 +639,111 @@ def player_behavior(index, num_of_cards=2):
             yield bp.sync(request=BPEvent("next_turn", priority=10.0))
 
 
+def update_placement(event, current_color, current_type):
+    card_color, card_type = extract_card_color_and_type(event)
+    if card_type == "CHANGE_COLOR" and card_color == "":
+        return current_color, current_type
+    if card_color is not None or card_type is not None:
+        return card_color, card_type
+    return current_color, current_type
+
+
+def update_taki_last(event, current_color, taki_last_color, taki_last_type):
+    if is_super_taki_event(event):
+        _, card_type = extract_card_color_and_type(event)
+        return taki_last_color if taki_last_color is not None else current_color, card_type
+
+    card_color, card_type = extract_card_color_and_type(event)
+    if card_type == "CHANGE_COLOR" and card_color == "":
+        return taki_last_color, taki_last_type
+    if card_color is not None or card_type is not None:
+        return card_color, card_type
+    return taki_last_color, taki_last_type
+
+
 @bp.thread
 def prefer_stop_over_regular_cards_strategy(index, color):
     """
     Strategy b-thread: bias player `index` toward playing Stop cards over
     regular numbered cards of the same color when both are available.
 
-    While the player holds at least one stop_{color} card, all regular
-    card_{n}_{color} requests are blocked so that the stop card is always
-    chosen first.  The block is lifted during TAKI sequences (where the
-    player may freely play same-color regular cards inside the sequence).
-
-    Important limitation:
-    This strategy does not check whether stop_{color} is currently legal under
-    the placement rules. If the player holds stop_red and card_4_red while the
-    leading card is card_4_blue, card_4_red is legal by number but stop_red is
-    not legal yet. The current implementation still blocks card_4_red because
-    it only tracks whether a stop card of that color is in hand.
+    While the player holds at least one legal stop_{color} card, all regular
+    card_{n}_{color} requests are blocked so that the stop card is chosen
+    first. The block is lifted during TAKI sequences, where the player may
+    freely play same-color regular cards inside the sequence.
     """
 
     num_of_stops_in_color = 0
+    dealing_to_player = False
+    current_color = None
+    current_type = None
+    in_taki_sequence = False
+    taki_last_color = None
+    taki_last_type = None
+    no_block = bp.EventSet(lambda e: False)
+    block_set = None
+    
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
 
     while True:
-        if num_of_stops_in_color == 0:
-            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
-            last_event = yield bp.sync(waitFor=DealCardsEventSet())
-            if last_event.name == f"deal_p_stop_{color}":
-                num_of_stops_in_color += 1
-        else: # Have stop card(s) — block regular same-color cards until stop is played
-            last_event = yield bp.sync(
-                waitFor=[
-                    BPEvent(f"p_{index}_stop_{color}"),
-                    BPEvent(f"deal_cards_to_player_{index}"),
-                    BPEvent(f"p_{index}_taki_{color}"),
-                    BPEvent(f"p_{index}_super_taki"),
-                ],
-                block=AllRegularCardsOfIndexAndColor(index, color),
+        if num_of_stops_in_color > 0 and not in_taki_sequence and (current_color == color or current_type == "STOP"):
+            block_set = (
+                AllRegularCardsOfIndexAndColor(index, color)
             )
+        else:
+            block_set = no_block
+        
+        last_event = yield bp.sync(waitFor=bp.All(), block=block_set)
+        event_name = last_event.name
 
-            if last_event.name == f"p_{index}_stop_{color}":
-                num_of_stops_in_color -= 1
-            elif is_any_taki_event(last_event):
-                while True:
-                    last_event = yield bp.sync(waitFor=bp.All())
-                    if last_event.name == f"p_{index}_closed_taki":
-                        break
-                    if last_event.name == f"p_{index}_stop_{color}":
-                        num_of_stops_in_color -= 1
-            else:  # deal_cards_to_player_{index}
-                last_event = yield bp.sync(waitFor=DealCardsEventSet())
-                if last_event.name == f"deal_p_stop_{color}":
-                    num_of_stops_in_color += 1
+        if event_name == f"deal_cards_to_player_{index}":
+            dealing_to_player = True
+            continue
+
+        if event_name.startswith("deal_cards_to_player_"): # Deal with care, understand this case!
+            dealing_to_player = False
+            continue
+
+        if event_name.startswith("deal_p_"):
+            if dealing_to_player and event_name == f"deal_p_stop_{color}":
+                num_of_stops_in_color += 1
+            dealing_to_player = False
+            continue
+
+        if event_name == f"p_{index}_stop_{color}" and num_of_stops_in_color > 0:
+            num_of_stops_in_color -= 1
+
+        if in_taki_sequence:
+            if event_name == "done_post_action":
+                current_color, current_type = taki_last_color, taki_last_type
+                in_taki_sequence = False
+                taki_last_color = None
+                taki_last_type = None
+            elif not event_name.endswith("_closed_taki"):
+                taki_last_color, taki_last_type = update_taki_last(
+                    last_event, current_color, taki_last_color, taki_last_type
+                )
+            continue
+
+        if is_any_taki_event(last_event):
+            in_taki_sequence = True
+            taki_last_color = current_color
+            taki_last_type = current_type
+            taki_last_color, taki_last_type = update_taki_last(
+                last_event, current_color, taki_last_color, taki_last_type
+            )
+            continue
+
+        if (
+            event_name.startswith("leading_")
+            or event_name.startswith("selected_")
+            or is_regular_card_event(last_event)
+            or is_stop_card_event(last_event)
+            or is_change_color_event(last_event)
+        ):
+            current_color, current_type = update_placement(
+                last_event, current_color, current_type
+            )
 
 
 @bp.thread
@@ -1743,9 +1796,9 @@ def init_b_program(starting_player=1):
         change_color_strategy(0, NUM_OF_CARDS),
         most_popular_color_selection_strategy(0, NUM_OF_CARDS),
         change_color_strategy(1, NUM_OF_CARDS),
-        prefer_stop_over_regular_cards_strategy(1, "red"),
-        prefer_stop_over_regular_cards_strategy(1, "blue"),
-        prefer_stop_over_regular_cards_strategy(1, "green"),
+        # prefer_stop_over_regular_cards_strategy(1, "red"),
+        # prefer_stop_over_regular_cards_strategy(1, "blue"),
+        # prefer_stop_over_regular_cards_strategy(1, "green"),
         most_popular_color_selection_strategy(1, NUM_OF_CARDS),
         # player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
         # basic_strategy_taki(0, NUM_OF_CARDS),

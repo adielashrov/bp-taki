@@ -3,11 +3,9 @@ Tests for prefer_stop_over_regular_cards_strategy.
 
 These tests cover only the behavior guaranteed by the current implementation:
 - prefer stop over same-color regular cards when both are legal
+- allow same-color regular cards when the stop is not legal yet
 - stay inactive when no stop card of that color is in hand
 - avoid interfering with regular cards of other colors
-
-They intentionally do not test the known legality edge case where a same-color
-regular card is legal by number but the stop card is not yet legal.
 """
 
 import unittest
@@ -136,6 +134,52 @@ class TestPreferStopStrategy(unittest.TestCase):
             ["p_0_card_4_red", "p_0_card_1_red"],
             msg=(
                 "With no stop card, P0 should play regular red cards without interference.\n"
+                f"Trace written to: {trace_path}\n"
+                f"Actual P0 moves: {p0_moves}"
+            ),
+        )
+
+    def test_regular_card_allowed_when_stop_is_not_legal(self):
+        """
+        When P0 holds stop_red and card_4_red, but the leading card is
+        card_4_blue, card_4_red is legal by number while stop_red is not legal.
+        """
+        test_name = self.id().split(".")[-1]
+        listener = TraceListener()
+
+        bp_program = make_test_bprogram(
+            dealer_bthread=fixed_alternating_dealer(
+                ["p_stop_red", "p_card_4_red"],
+                ["p_card_1_red", "p_card_1_green"],
+                "p_card_4_blue",
+            ),
+            listener=listener,
+            num_cards=2,
+            extra_bthreads=[
+                prefer_stop_over_regular_cards_strategy(0, "red"),
+                end_game_after_p0_plays(1),
+            ],
+        )
+
+        run_bp_with_trace(test_name, bp_program, listener)
+
+        p0_moves = p0_played_cards(listener.events)
+        trace_path = write_trace_to_file(test_name, listener.events)
+
+        self.assertGreater(
+            len(p0_moves),
+            0,
+            msg=(
+                "P0 should be able to play at least one card.\n"
+                f"Trace written to: {trace_path}\n"
+                f"Actual P0 moves: {p0_moves}"
+            ),
+        )
+        self.assertEqual(
+            p0_moves[0],
+            "p_0_card_4_red",
+            msg=(
+                "card_4_red should be the first P0 move when stop_red is not legal.\n"
                 f"Trace written to: {trace_path}\n"
                 f"Actual P0 moves: {p0_moves}"
             ),
