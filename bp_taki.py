@@ -323,8 +323,6 @@ class AllRegularCardsOfIndexAndColor(bp.EventSet):
     def __contains__(self, item):
         if isinstance(item, BPEvent):
             matched = re.match(self.pattern, item.name) is not None
-            if matched:
-                logger.debug("[REGULAR_CARD_BLOCK] BLOCKING p_%s regular %s card: %s matches pattern '%s'", self.index, self.color, item.name, self.pattern)
             return matched
         else:
             raise TypeError(
@@ -673,6 +671,8 @@ def prefer_stop_over_regular_cards_strategy(index, color):
     freely play same-color regular cards inside the sequence.
     """
 
+    log_tag = f"[PREFER_STOP P{index}/{color}]"
+
     num_of_stops_in_color = 0
     dealing_to_player = False
     current_color = None
@@ -682,17 +682,35 @@ def prefer_stop_over_regular_cards_strategy(index, color):
     taki_last_type = None
     no_block = bp.EventSet(lambda e: False)
     block_set = None
-    
+    block_active = False
+
+    logger.debug(f"{log_tag} strategy started")
+
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
 
     while True:
-        if num_of_stops_in_color > 0 and not in_taki_sequence and (current_color == color or current_type == "STOP"):
-            block_set = (
-                AllRegularCardsOfIndexAndColor(index, color)
-            )
-        else:
-            block_set = no_block
-        
+        should_block = (
+            num_of_stops_in_color > 0
+            and not in_taki_sequence
+            and (current_color == color or current_type == "STOP")
+        )
+
+        if should_block != block_active:
+            if should_block:
+                logger.debug(
+                    f"{log_tag} BLOCKING regular {color} cards: stop_{color} is legal "
+                    f"(leading={current_color}/{current_type}, stops_in_hand={num_of_stops_in_color})"
+                )
+            else:
+                logger.debug(
+                    f"{log_tag} ALLOWING regular {color} cards "
+                    f"(leading={current_color}/{current_type}, stops_in_hand={num_of_stops_in_color}, "
+                    f"in_taki_sequence={in_taki_sequence})"
+                )
+            block_active = should_block
+
+        block_set = AllRegularCardsOfIndexAndColor(index, color) if should_block else no_block
+
         last_event = yield bp.sync(waitFor=bp.All(), block=block_set)
         event_name = last_event.name
 
@@ -707,11 +725,16 @@ def prefer_stop_over_regular_cards_strategy(index, color):
         if event_name.startswith("deal_p_"):
             if dealing_to_player and event_name == f"deal_p_stop_{color}":
                 num_of_stops_in_color += 1
+                logger.debug(f"{log_tag} dealt stop_{color}, stops_in_hand={num_of_stops_in_color}")
             dealing_to_player = False
             continue
 
-        if event_name == f"p_{index}_stop_{color}" and num_of_stops_in_color > 0:
-            num_of_stops_in_color -= 1
+        if event_name == f"p_{index}_stop_{color}":
+            if num_of_stops_in_color > 0:
+                num_of_stops_in_color -= 1
+                logger.debug(f"{log_tag} played stop_{color}, stops_in_hand={num_of_stops_in_color}")
+            else:
+                logger.warning(f"{log_tag} played stop_{color} but stops_in_hand was already 0")
 
         if in_taki_sequence:
             if event_name == "done_post_action":
@@ -719,9 +742,16 @@ def prefer_stop_over_regular_cards_strategy(index, color):
                 in_taki_sequence = False
                 taki_last_color = None
                 taki_last_type = None
+                logger.debug(
+                    f"{log_tag} TAKI sequence ended, placement now {current_color}/{current_type}"
+                )
             elif not event_name.endswith("_closed_taki"):
                 taki_last_color, taki_last_type = update_taki_last(
                     last_event, current_color, taki_last_color, taki_last_type
+                )
+                logger.debug(
+                    f"{log_tag} TAKI sequence card {event_name}, "
+                    f"pending placement {taki_last_color}/{taki_last_type}"
                 )
             continue
 
@@ -732,6 +762,10 @@ def prefer_stop_over_regular_cards_strategy(index, color):
             taki_last_color, taki_last_type = update_taki_last(
                 last_event, current_color, taki_last_color, taki_last_type
             )
+            logger.debug(
+                f"{log_tag} TAKI sequence started by {event_name}, "
+                f"pending placement {taki_last_color}/{taki_last_type}"
+            )
             continue
 
         if (
@@ -741,9 +775,15 @@ def prefer_stop_over_regular_cards_strategy(index, color):
             or is_stop_card_event(last_event)
             or is_change_color_event(last_event)
         ):
+            previous_color, previous_type = current_color, current_type
             current_color, current_type = update_placement(
                 last_event, current_color, current_type
             )
+            if (current_color, current_type) != (previous_color, previous_type):
+                logger.debug(
+                    f"{log_tag} placement updated by {event_name}: "
+                    f"{previous_color}/{previous_type} -> {current_color}/{current_type}"
+                )
 
 
 @bp.thread
@@ -1795,10 +1835,11 @@ def init_b_program(starting_player=1):
         player_behavior(1, NUM_OF_CARDS),
         change_color_strategy(0, NUM_OF_CARDS),
         most_popular_color_selection_strategy(0, NUM_OF_CARDS),
+        prefer_stop_over_regular_cards_strategy(0, "green"),
         change_color_strategy(1, NUM_OF_CARDS),
-        # prefer_stop_over_regular_cards_strategy(1, "red"),
-        # prefer_stop_over_regular_cards_strategy(1, "blue"),
-        # prefer_stop_over_regular_cards_strategy(1, "green"),
+        prefer_stop_over_regular_cards_strategy(1, "red"),
+        prefer_stop_over_regular_cards_strategy(1, "blue"),
+        prefer_stop_over_regular_cards_strategy(1, "green"),
         most_popular_color_selection_strategy(1, NUM_OF_CARDS),
         # player_behavior_external(1, NUM_OF_CARDS, starting_player, NUM_OF_PLAYERS, PythonAgent(seed=SEED)),
         # basic_strategy_taki(0, NUM_OF_CARDS),
