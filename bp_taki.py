@@ -725,14 +725,14 @@ def prefer_stop_over_regular_cards_strategy(index, color):
         if event_name.startswith("deal_p_"):
             if dealing_to_player and event_name == f"deal_p_stop_{color}":
                 num_of_stops_in_color += 1
-                logger.debug(f"{log_tag} dealt stop_{color}, stops_in_hand={num_of_stops_in_color}")
+                # logger.debug(f"{log_tag} dealt stop_{color}, stops_in_hand={num_of_stops_in_color}")
             dealing_to_player = False
             continue
 
         if event_name == f"p_{index}_stop_{color}":
             if num_of_stops_in_color > 0:
                 num_of_stops_in_color -= 1
-                logger.debug(f"{log_tag} played stop_{color}, stops_in_hand={num_of_stops_in_color}")
+                # logger.debug(f"{log_tag} played stop_{color}, stops_in_hand={num_of_stops_in_color}")
             else:
                 logger.warning(f"{log_tag} played stop_{color} but stops_in_hand was already 0")
 
@@ -742,17 +742,12 @@ def prefer_stop_over_regular_cards_strategy(index, color):
                 in_taki_sequence = False
                 taki_last_color = None
                 taki_last_type = None
-                logger.debug(
-                    f"{log_tag} TAKI sequence ended, placement now {current_color}/{current_type}"
-                )
+                # logger.debug(f"{log_tag} TAKI sequence ended, placement now {current_color}/{current_type}")
             elif not event_name.endswith("_closed_taki"):
                 taki_last_color, taki_last_type = update_taki_last(
                     last_event, current_color, taki_last_color, taki_last_type
                 )
-                logger.debug(
-                    f"{log_tag} TAKI sequence card {event_name}, "
-                    f"pending placement {taki_last_color}/{taki_last_type}"
-                )
+                # logger.debug( f"{log_tag} TAKI sequence card {event_name}, "f"pending placement {taki_last_color}/{taki_last_type}")
             continue
 
         if is_any_taki_event(last_event):
@@ -762,10 +757,10 @@ def prefer_stop_over_regular_cards_strategy(index, color):
             taki_last_color, taki_last_type = update_taki_last(
                 last_event, current_color, taki_last_color, taki_last_type
             )
-            logger.debug(
-                f"{log_tag} TAKI sequence started by {event_name}, "
-                f"pending placement {taki_last_color}/{taki_last_type}"
-            )
+            # logger.debug(
+            #    f"{log_tag} TAKI sequence started by {event_name}, "
+            #    f"pending placement {taki_last_color}/{taki_last_type}"
+            # )
             continue
 
         if (
@@ -779,11 +774,11 @@ def prefer_stop_over_regular_cards_strategy(index, color):
             current_color, current_type = update_placement(
                 last_event, current_color, current_type
             )
-            if (current_color, current_type) != (previous_color, previous_type):
-                logger.debug(
-                    f"{log_tag} placement updated by {event_name}: "
-                    f"{previous_color}/{previous_type} -> {current_color}/{current_type}"
-                )
+            # if (current_color, current_type) != (previous_color, previous_type):
+                # logger.debug(
+                #    f"{log_tag} placement updated by {event_name}: "
+                #    f"{previous_color}/{previous_type} -> {current_color}/{current_type}"
+                # )
 
 
 @bp.thread
