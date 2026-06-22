@@ -29,6 +29,7 @@ from bp_taki import (
     change_color_strategy,
     most_popular_color_selection_strategy,
     prefer_stop_over_regular_cards_strategy,
+    prefer_popular_color_regular_cards_strategy,
     enforce_turns,
     enforce_card_placement_rules,
     identify_deadlock,
@@ -49,6 +50,7 @@ class PlayerStrategyConfig:
     change_color: bool = False
     most_popular_color: bool = False
     prefer_stop: bool = False
+    prefer_popular_color_regular_cards: bool = False
 
     def label(self) -> str:
         parts = [self.base_strategy]
@@ -58,6 +60,8 @@ class PlayerStrategyConfig:
             parts.append("change_color")
         if self.most_popular_color:
             parts.append("most_popular_color")
+        if self.prefer_popular_color_regular_cards:
+            parts.append("prefer_popular_color_regular_cards")
         if self.prefer_stop:
             parts.append("prefer_stop")
         return "+".join(parts)
@@ -558,6 +562,8 @@ def _apply_strategy_config(bthreads: list, index: int, config: PlayerStrategyCon
     if config.prefer_stop:
         for color in COLORS:
             bthreads.append(prefer_stop_over_regular_cards_strategy(index, color))
+    if config.prefer_popular_color_regular_cards:
+        bthreads.append(prefer_popular_color_regular_cards_strategy(index, num_cards))
 
 
 def create_simulation_bprogram(
@@ -1473,21 +1479,23 @@ def run_bp_vs_strategy_player_simulation():
 
 
 def run_players_simulation():
-    num_seed_pairs = 10000
+    num_seed_pairs = 1000
 
     player_0_config = PlayerStrategyConfig(
-        base_strategy="taki_and_super_taki",
-        block_super_taki=True,
-        change_color=True,
-        most_popular_color=True,
-        prefer_stop=True,
+        base_strategy="basic",
+        block_super_taki=False,
+        change_color=False,
+        most_popular_color=False,
+        prefer_stop=False,
+        prefer_popular_color_regular_cards=False,
     )
     player_1_config = PlayerStrategyConfig(
-        base_strategy="taki_and_super_taki",
-        block_super_taki=True,
-        change_color=True,
-        most_popular_color=True,
-        prefer_stop=True,
+        base_strategy="basic",
+        block_super_taki=False,
+        change_color=False,
+        most_popular_color=False,
+        prefer_stop=False,
+        prefer_popular_color_regular_cards=False,
     )
 
     stats = run_simulation(
@@ -1499,7 +1507,7 @@ def run_players_simulation():
         player_0_config=player_0_config,
         player_1_config=player_1_config,
         silent=True,
-        progress_interval=500,
+        progress_interval=250,
     )
 
     p0_label = player_0_config.label()
