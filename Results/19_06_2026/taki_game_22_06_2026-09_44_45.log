@@ -1,0 +1,495 @@
+09:44:45.825 - --> Logger configured. Saving to: taki_game_22_06_2026-09_44_45.log
+09:44:45.830 - Starting Taki Game BProgram Execution
+09:44:45.831 - STARTED
+09:44:45.833 - BPEvent(name=start_dealing_cards_to_players,data={}, priority=10.0)
+09:44:45.834 - [DEAL_CARDS] Dealing order: [1, 0] (starting_player=1)
+09:44:45.838 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.840 - BPEvent(name=deal_p_card_7_red,data={}, priority=10.0)
+09:44:45.843 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.846 - BPEvent(name=deal_p_card_4_blue,data={}, priority=10.0)
+09:44:45.849 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.852 - BPEvent(name=deal_p_card_1_green,data={}, priority=10.0)
+09:44:45.855 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.858 - BPEvent(name=deal_p_taki_blue,data={}, priority=10.0)
+09:44:45.861 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.865 - BPEvent(name=deal_p_taki_red,data={}, priority=10.0)
+09:44:45.868 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.872 - BPEvent(name=deal_p_card_5_yellow,data={}, priority=10.0)
+09:44:45.876 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.880 - BPEvent(name=deal_p_stop_red,data={}, priority=10.0)
+09:44:45.884 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.887 - BPEvent(name=deal_p_stop_green,data={}, priority=10.0)
+09:44:45.889 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.891 - BPEvent(name=deal_p_stop_red,data={}, priority=10.0)
+09:44:45.897 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.908 - BPEvent(name=deal_p_card_4_red,data={}, priority=10.0)
+09:44:45.917 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.924 - BPEvent(name=deal_p_card_9_green,data={}, priority=10.0)
+09:44:45.928 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.938 - BPEvent(name=deal_p_card_6_green,data={}, priority=10.0)
+09:44:45.941 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.949 - BPEvent(name=deal_p_card_5_yellow,data={}, priority=10.0)
+09:44:45.965 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:45.975 - BPEvent(name=deal_p_taki_red,data={}, priority=10.0)
+09:44:45.979 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:45.988 - BPEvent(name=deal_p_card_9_blue,data={}, priority=10.0)
+09:44:45.996 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.015 - BPEvent(name=deal_p_card_3_red,data={}, priority=10.0)
+09:44:46.022 - BPEvent(name=finished_dealing_cards_to_players,data={}, priority=10.0)
+09:44:46.029 - BPEvent(name=deal_leading_card,data={}, priority=10.0)
+09:44:46.038 - BPEvent(name=deal_p_card_7_red,data={}, priority=10.0)
+09:44:46.041 - BPEvent(name=leading_deal_p_card_7_red,data={}, priority=10.0)
+09:44:46.044 - BPEvent(name=finished_leading_card,data={}, priority=10.0)
+09:44:46.050 - BPEvent(name=start_game,data={}, priority=10.0)
+09:44:46.063 - BPEvent(name=p_1_taki_red,data={}, priority=4.0)
+09:44:46.068 - ============================================================
+09:44:46.069 - [PLAYER_1] Regular TAKI SEQUENCE STARTING: p_1_taki_red
+09:44:46.069 - [PLAYER_1] Removing TAKI from hand
+09:44:46.070 - [PLAYER_1] Adding closed_taki to possible actions
+09:44:46.071 - ============================================================
+09:44:46.075 - [TAKI_TURN_GUARD] Player 1: TAKI opened, blocking next_turn until done_post_action
+09:44:46.076 - [ENFORCE_TURNS] Event received: p_1_taki_red
+09:44:46.077 - [ENFORCE_TURNS] Regular TAKI by Player 1, waiting for closed_taki
+09:44:46.078 - ============================================================
+09:44:46.078 - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_1_taki_red
+09:44:46.078 - [ENFORCE_RULES] Previous placement color=red
+09:44:46.081 - ============================================================
+09:44:46.082 - ============================================================
+09:44:46.083 - [ENFORCE_RULES] Regular TAKI detected: p_1_taki_red
+09:44:46.084 - [ENFORCE_RULES] Color determined by TAKI card: red
+09:44:46.085 - [ENFORCE_RULES] Blocking all non-red cards
+09:44:46.085 - ============================================================
+09:44:46.086 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.090 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.091 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.091 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.092 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.093 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.094 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.097 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.099 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.101 - BPEvent(name=p_1_stop_red,data={}, priority=7.0)
+09:44:46.103 - [PLAYER_1] Card played in TAKI: p_1_stop_red
+09:44:46.107 - [ENFORCE_RULES] Event received: p_1_stop_red
+09:44:46.108 - [ENFORCE_RULES] Card accepted during TAKI: p_1_stop_red (color=red, type=STOP)
+09:44:46.108 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.116 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.118 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.119 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.120 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.121 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.122 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.124 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.125 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.126 - BPEvent(name=p_1_stop_red,data={}, priority=7.0)
+09:44:46.127 - [PLAYER_1] Card played in TAKI: p_1_stop_red
+09:44:46.132 - [ENFORCE_RULES] Event received: p_1_stop_red
+09:44:46.139 - [ENFORCE_RULES] Card accepted during TAKI: p_1_stop_red (color=red, type=STOP)
+09:44:46.140 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.150 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.151 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.154 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.156 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.158 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.159 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.159 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.160 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.161 - BPEvent(name=p_1_card_7_red,data={}, priority=8.35)
+09:44:46.162 - [PLAYER_1] Card played in TAKI: p_1_card_7_red
+09:44:46.169 - [ENFORCE_RULES] Event received: p_1_card_7_red
+09:44:46.170 - [ENFORCE_RULES] Card accepted during TAKI: p_1_card_7_red (color=red, type=7)
+09:44:46.171 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.176 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.177 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.178 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.181 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.183 - [TAKI_BLOCK] CHECK event=p_1_card_1_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.184 - [TAKI_BLOCK] CHECK event=p_1_card_9_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.185 - [TAKI_BLOCK] CHECK event=p_1_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.186 - [TAKI_BLOCK] CHECK event=p_1_card_9_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.186 - BPEvent(name=p_1_closed_taki,data={}, priority=15.0)
+09:44:46.188 - ============================================================
+09:44:46.188 - [PLAYER_1] TAKI SEQUENCE ENDING
+09:44:46.189 - [PLAYER_1] Cards played: ['p_1_stop_red', 'p_1_stop_red', 'p_1_card_7_red']
+09:44:46.189 - [PLAYER_1] Total cards in sequence: 3
+09:44:46.190 - ============================================================
+09:44:46.192 - [TAKI_TURN_GUARD] Player 1: closed_taki observed, keeping next_turn blocked until done_post_action
+09:44:46.192 - [ENFORCE_TURNS] closed_taki received for Regular TAKI, requesting done_post_action
+09:44:46.194 - [ENFORCE_RULES] Event received: p_1_closed_taki
+09:44:46.195 - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+09:44:46.196 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.199 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:46.201 - [TAKI_TURN_GUARD] Player 1: done_post_action observed, next_turn unblocked
+09:44:46.202 - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+09:44:46.203 - [ENFORCE_RULES] Event received: done_post_action
+09:44:46.203 - ============================================================
+09:44:46.204 - [ENFORCE_RULES] TAKI sequence ended
+09:44:46.204 - [ENFORCE_RULES] Cards played in sequence: ['p_1_stop_red', 'p_1_stop_red', 'p_1_card_7_red']
+09:44:46.205 - [ENFORCE_RULES] Last card color: red, type: 7
+09:44:46.205 - ============================================================
+09:44:46.206 - [ENFORCE_RULES] Post-TAKI placement rules: must match color=red OR type=7
+09:44:46.209 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.211 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.214 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.218 - BPEvent(name=p_0_taki_red,data={}, priority=10.0)
+09:44:46.219 - ============================================================
+09:44:46.220 - [PLAYER_0] Regular TAKI SEQUENCE STARTING: p_0_taki_red
+09:44:46.221 - [PLAYER_0] Removing TAKI from hand
+09:44:46.221 - [PLAYER_0] Adding closed_taki to possible actions
+09:44:46.222 - ============================================================
+09:44:46.223 - [TAKI_TURN_GUARD] Player 0: TAKI opened, blocking next_turn until done_post_action
+09:44:46.224 - [ENFORCE_TURNS] Event received: p_0_taki_red
+09:44:46.225 - [ENFORCE_TURNS] Regular TAKI by Player 0, waiting for closed_taki
+09:44:46.226 - ============================================================
+09:44:46.227 - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_0_taki_red
+09:44:46.227 - [ENFORCE_RULES] Previous placement color=red
+09:44:46.228 - ============================================================
+09:44:46.228 - ============================================================
+09:44:46.229 - [ENFORCE_RULES] Regular TAKI detected: p_0_taki_red
+09:44:46.230 - [ENFORCE_RULES] Color determined by TAKI card: red
+09:44:46.231 - [ENFORCE_RULES] Blocking all non-red cards
+09:44:46.231 - ============================================================
+09:44:46.232 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.237 - [TAKI_BLOCK] CHECK event=p_0_card_4_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.238 - [TAKI_BLOCK] CHECK event=p_0_taki_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.239 - [TAKI_BLOCK] CHECK event=p_0_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.240 - [TAKI_BLOCK] CHECK event=p_0_stop_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.240 - [TAKI_BLOCK] CHECK event=p_0_card_6_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.241 - BPEvent(name=p_0_card_3_red,data={}, priority=10.0)
+09:44:46.242 - [PLAYER_0] Card played in TAKI: p_0_card_3_red
+09:44:46.244 - [ENFORCE_RULES] Event received: p_0_card_3_red
+09:44:46.245 - [ENFORCE_RULES] Card accepted during TAKI: p_0_card_3_red (color=red, type=3)
+09:44:46.246 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.250 - [TAKI_BLOCK] CHECK event=p_0_card_4_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.251 - [TAKI_BLOCK] CHECK event=p_0_taki_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.252 - [TAKI_BLOCK] CHECK event=p_0_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.253 - [TAKI_BLOCK] CHECK event=p_0_stop_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.254 - [TAKI_BLOCK] CHECK event=p_0_card_6_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.255 - BPEvent(name=p_0_card_4_red,data={}, priority=10.0)
+09:44:46.256 - [PLAYER_0] Card played in TAKI: p_0_card_4_red
+09:44:46.258 - [ENFORCE_RULES] Event received: p_0_card_4_red
+09:44:46.259 - [ENFORCE_RULES] Card accepted during TAKI: p_0_card_4_red (color=red, type=4)
+09:44:46.259 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.264 - [TAKI_BLOCK] CHECK event=p_0_card_4_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.265 - [TAKI_BLOCK] CHECK event=p_0_taki_blue (card_color=blue, TAKI_color=red) -> BLOCK
+09:44:46.266 - [TAKI_BLOCK] CHECK event=p_0_card_5_yellow (card_color=yellow, TAKI_color=red) -> BLOCK
+09:44:46.267 - [TAKI_BLOCK] CHECK event=p_0_stop_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.268 - [TAKI_BLOCK] CHECK event=p_0_card_6_green (card_color=green, TAKI_color=red) -> BLOCK
+09:44:46.268 - BPEvent(name=p_0_closed_taki,data={}, priority=15.0)
+09:44:46.270 - ============================================================
+09:44:46.270 - [PLAYER_0] TAKI SEQUENCE ENDING
+09:44:46.271 - [PLAYER_0] Cards played: ['p_0_card_3_red', 'p_0_card_4_red']
+09:44:46.272 - [PLAYER_0] Total cards in sequence: 2
+09:44:46.272 - ============================================================
+09:44:46.274 - [TAKI_TURN_GUARD] Player 0: closed_taki observed, keeping next_turn blocked until done_post_action
+09:44:46.275 - [ENFORCE_TURNS] closed_taki received for Regular TAKI, requesting done_post_action
+09:44:46.276 - [ENFORCE_RULES] Event received: p_0_closed_taki
+09:44:46.277 - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+09:44:46.278 - [ENFORCE_RULES] Waiting for card (must be red) or done_post_action.
+09:44:46.282 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:46.284 - [TAKI_TURN_GUARD] Player 0: done_post_action observed, next_turn unblocked
+09:44:46.286 - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+09:44:46.287 - [ENFORCE_RULES] Event received: done_post_action
+09:44:46.287 - ============================================================
+09:44:46.288 - [ENFORCE_RULES] TAKI sequence ended
+09:44:46.288 - [ENFORCE_RULES] Cards played in sequence: ['p_0_card_3_red', 'p_0_card_4_red']
+09:44:46.289 - [ENFORCE_RULES] Last card color: red, type: 4
+09:44:46.289 - ============================================================
+09:44:46.290 - [ENFORCE_RULES] Post-TAKI placement rules: must match color=red OR type=4
+09:44:46.294 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.297 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.297 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.301 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.305 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:46.320 - BPEvent(name=deal_p_card_9_yellow,data={}, priority=10.0)
+09:44:46.327 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.331 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.332 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.335 - BPEvent(name=p_0_card_4_blue,data={}, priority=10.0)
+09:44:46.340 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.343 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.343 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.349 - BPEvent(name=p_1_card_9_blue,data={}, priority=8.35)
+09:44:46.354 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.357 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.358 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.366 - BPEvent(name=p_0_taki_blue,data={}, priority=10.0)
+09:44:46.367 - ============================================================
+09:44:46.368 - [PLAYER_0] Regular TAKI SEQUENCE STARTING: p_0_taki_blue
+09:44:46.369 - [PLAYER_0] Removing TAKI from hand
+09:44:46.369 - [PLAYER_0] Adding closed_taki to possible actions
+09:44:46.370 - ============================================================
+09:44:46.371 - [TAKI_TURN_GUARD] Player 0: TAKI opened, blocking next_turn until done_post_action
+09:44:46.372 - [ENFORCE_TURNS] Event received: p_0_taki_blue
+09:44:46.373 - [ENFORCE_TURNS] Regular TAKI by Player 0, waiting for closed_taki
+09:44:46.374 - ============================================================
+09:44:46.374 - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_0_taki_blue
+09:44:46.375 - [ENFORCE_RULES] Previous placement color=blue
+09:44:46.376 - ============================================================
+09:44:46.376 - ============================================================
+09:44:46.377 - [ENFORCE_RULES] Regular TAKI detected: p_0_taki_blue
+09:44:46.377 - [ENFORCE_RULES] Color determined by TAKI card: blue
+09:44:46.378 - [ENFORCE_RULES] Blocking all non-blue cards
+09:44:46.379 - ============================================================
+09:44:46.379 - [ENFORCE_RULES] Waiting for card (must be blue) or done_post_action.
+09:44:46.384 - [TAKI_BLOCK] CHECK event=p_0_card_5_yellow (card_color=yellow, TAKI_color=blue) -> BLOCK
+09:44:46.385 - [TAKI_BLOCK] CHECK event=p_0_stop_green (card_color=green, TAKI_color=blue) -> BLOCK
+09:44:46.386 - [TAKI_BLOCK] CHECK event=p_0_card_6_green (card_color=green, TAKI_color=blue) -> BLOCK
+09:44:46.387 - BPEvent(name=p_0_closed_taki,data={}, priority=15.0)
+09:44:46.388 - ============================================================
+09:44:46.389 - [PLAYER_0] TAKI SEQUENCE ENDING
+09:44:46.390 - [PLAYER_0] Cards played: []
+09:44:46.390 - [PLAYER_0] Total cards in sequence: 0
+09:44:46.391 - ============================================================
+09:44:46.392 - [TAKI_TURN_GUARD] Player 0: closed_taki observed, keeping next_turn blocked until done_post_action
+09:44:46.393 - [ENFORCE_TURNS] closed_taki received for Regular TAKI, requesting done_post_action
+09:44:46.396 - [ENFORCE_RULES] Event received: p_0_closed_taki
+09:44:46.396 - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+09:44:46.398 - [ENFORCE_RULES] Waiting for card (must be blue) or done_post_action.
+09:44:46.402 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:46.406 - [TAKI_TURN_GUARD] Player 0: done_post_action observed, next_turn unblocked
+09:44:46.407 - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+09:44:46.408 - [ENFORCE_RULES] Event received: done_post_action
+09:44:46.409 - ============================================================
+09:44:46.409 - [ENFORCE_RULES] TAKI sequence ended
+09:44:46.410 - [ENFORCE_RULES] Cards played in sequence: []
+09:44:46.411 - [ENFORCE_RULES] Last card color: blue, type: TAKI
+09:44:46.411 - ============================================================
+09:44:46.413 - [ENFORCE_RULES] Post-TAKI placement rules: must match color=blue OR type=TAKI
+09:44:46.418 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.420 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.421 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.426 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.434 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:46.473 - BPEvent(name=deal_p_card_6_green,data={}, priority=10.0)
+09:44:46.489 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.492 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.494 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.503 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:46.506 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.523 - BPEvent(name=deal_p_card_6_red,data={}, priority=10.0)
+09:44:46.528 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.530 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.531 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.537 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.542 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:46.554 - BPEvent(name=deal_p_card_9_red,data={}, priority=10.0)
+09:44:46.559 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.565 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.566 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.572 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:46.578 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.594 - BPEvent(name=deal_p_card_9_blue,data={}, priority=10.0)
+09:44:46.607 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.609 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.609 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.622 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.631 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:46.656 - BPEvent(name=deal_p_card_3_green,data={}, priority=10.0)
+09:44:46.660 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.664 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.665 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.671 - BPEvent(name=p_0_card_9_blue,data={}, priority=10.0)
+09:44:46.677 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.679 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.681 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.687 - BPEvent(name=p_1_card_9_green,data={}, priority=8.0)
+09:44:46.692 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.695 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.695 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.701 - BPEvent(name=p_0_card_6_green,data={}, priority=10.0)
+09:44:46.707 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.709 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.710 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.718 - BPEvent(name=p_1_card_1_green,data={}, priority=8.0)
+09:44:46.723 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.726 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.726 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.731 - BPEvent(name=p_0_stop_green,data={}, priority=10.0)
+09:44:46.734 - [ENFORCE_TURNS] Event received: p_0_stop_green
+09:44:46.736 - [ENFORCE_TURNS] Stop card played by Player 0, next player is: 0
+09:44:46.737 - [ENFORCE_RULES] Stop card played: updating rules to match color=green OR type=STOP
+09:44:46.740 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:46.746 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.749 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.749 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 0
+09:44:46.753 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:46.758 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.770 - BPEvent(name=deal_p_card_4_red,data={}, priority=10.0)
+09:44:46.776 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.779 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.781 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.790 - BPEvent(name=p_1_card_3_green,data={}, priority=8.0)
+09:44:46.796 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.799 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.800 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.805 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:46.811 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.822 - BPEvent(name=deal_p_card_7_blue,data={}, priority=10.0)
+09:44:46.826 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.828 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.829 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.834 - BPEvent(name=p_1_card_6_green,data={}, priority=8.35)
+09:44:46.839 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.841 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.842 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.846 - BPEvent(name=p_0_card_6_red,data={}, priority=10.0)
+09:44:46.851 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.853 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.854 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.859 - BPEvent(name=p_1_card_9_red,data={}, priority=8.35)
+09:44:46.864 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.866 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.866 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.868 - BPEvent(name=p_0_card_4_red,data={}, priority=10.0)
+09:44:46.873 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.874 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.874 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.874 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.883 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:46.893 - BPEvent(name=deal_p_taki_blue,data={}, priority=10.0)
+09:44:46.898 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.900 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.901 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:46.904 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:46.909 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:46.920 - BPEvent(name=deal_p_card_5_red,data={}, priority=10.0)
+09:44:46.922 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:46.924 - [ENFORCE_TURNS] Event received: next_turn
+09:44:46.924 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:46.966 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:46.993 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:47.053 - BPEvent(name=deal_p_change_color,data={}, priority=10.0)
+09:44:47.077 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.081 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.082 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.085 - BPEvent(name=p_0_card_5_red,data={}, priority=10.0)
+09:44:47.090 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.094 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.116 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.121 - BPEvent(name=p_1_card_5_yellow,data={}, priority=8.0)
+09:44:47.126 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.128 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.128 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.132 - BPEvent(name=p_0_card_5_yellow,data={}, priority=10.0)
+09:44:47.137 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.139 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.140 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.146 - BPEvent(name=p_1_card_9_yellow,data={}, priority=8.0)
+09:44:47.152 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.156 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.158 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.161 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:47.166 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:47.177 - BPEvent(name=deal_p_card_3_yellow,data={}, priority=10.0)
+09:44:47.184 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.188 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.190 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.195 - BPEvent(name=p_1_change_color,data={}, priority=10.0)
+09:44:47.200 - BPEvent(name=selected_yellow,data={}, priority=5.0)
+09:44:47.204 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:47.209 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.211 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.212 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.215 - BPEvent(name=p_0_card_3_yellow,data={}, priority=10.0)
+09:44:47.219 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.221 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.221 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.225 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:47.227 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:47.237 - BPEvent(name=deal_p_card_6_blue,data={}, priority=10.0)
+09:44:47.241 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.241 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.241 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.248 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:47.254 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:47.261 - BPEvent(name=deal_p_card_3_green,data={}, priority=10.0)
+09:44:47.267 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.269 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.270 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.274 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:47.279 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:47.289 - BPEvent(name=deal_p_stop_yellow,data={}, priority=10.0)
+09:44:47.292 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.292 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.292 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.297 - BPEvent(name=p_0_card_3_green,data={}, priority=10.0)
+09:44:47.301 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.305 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.305 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.311 - BPEvent(name=p_1_draw_card,data={}, priority=20.0)
+09:44:47.315 - BPEvent(name=deal_cards_to_player_1,data={}, priority=10.0)
+09:44:47.320 - BPEvent(name=deal_p_card_7_green,data={}, priority=10.0)
+09:44:47.321 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.326 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.326 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.329 - BPEvent(name=p_0_draw_card,data={}, priority=20.0)
+09:44:47.334 - BPEvent(name=deal_cards_to_player_0,data={}, priority=10.0)
+09:44:47.341 - BPEvent(name=deal_p_card_5_blue,data={}, priority=10.0)
+09:44:47.348 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.350 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.350 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.354 - BPEvent(name=p_1_card_7_green,data={}, priority=8.35)
+09:44:47.355 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.355 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.360 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.362 - BPEvent(name=p_0_card_7_blue,data={}, priority=10.0)
+09:44:47.366 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.368 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.369 - [ENFORCE_TURNS] Turn change: Player 0 -> Player 1
+09:44:47.373 - BPEvent(name=p_1_taki_blue,data={}, priority=4.0)
+09:44:47.374 - ============================================================
+09:44:47.374 - [PLAYER_1] Regular TAKI SEQUENCE STARTING: p_1_taki_blue
+09:44:47.375 - [PLAYER_1] Removing TAKI from hand
+09:44:47.375 - [PLAYER_1] Adding closed_taki to possible actions
+09:44:47.376 - ============================================================
+09:44:47.377 - [TAKI_TURN_GUARD] Player 1: TAKI opened, blocking next_turn until done_post_action
+09:44:47.378 - [ENFORCE_TURNS] Event received: p_1_taki_blue
+09:44:47.379 - [ENFORCE_TURNS] Regular TAKI by Player 1, waiting for closed_taki
+09:44:47.380 - ============================================================
+09:44:47.381 - [ENFORCE_RULES] ENTER TAKI MODE, last_event=p_1_taki_blue
+09:44:47.381 - [ENFORCE_RULES] Previous placement color=blue
+09:44:47.382 - ============================================================
+09:44:47.382 - ============================================================
+09:44:47.383 - [ENFORCE_RULES] Regular TAKI detected: p_1_taki_blue
+09:44:47.383 - [ENFORCE_RULES] Color determined by TAKI card: blue
+09:44:47.384 - [ENFORCE_RULES] Blocking all non-blue cards
+09:44:47.384 - ============================================================
+09:44:47.386 - [ENFORCE_RULES] Waiting for card (must be blue) or done_post_action.
+09:44:47.388 - [TAKI_BLOCK] CHECK event=p_1_stop_yellow (card_color=yellow, TAKI_color=blue) -> BLOCK
+09:44:47.389 - [TAKI_BLOCK] CHECK event=p_1_stop_yellow (card_color=yellow, TAKI_color=blue) -> BLOCK
+09:44:47.390 - BPEvent(name=p_1_card_6_blue,data={}, priority=8.0)
+09:44:47.391 - [PLAYER_1] Card played in TAKI: p_1_card_6_blue
+09:44:47.393 - [ENFORCE_RULES] Event received: p_1_card_6_blue
+09:44:47.393 - [ENFORCE_RULES] Card accepted during TAKI: p_1_card_6_blue (color=blue, type=6)
+09:44:47.393 - [ENFORCE_RULES] Waiting for card (must be blue) or done_post_action.
+09:44:47.393 - [TAKI_BLOCK] CHECK event=p_1_stop_yellow (card_color=yellow, TAKI_color=blue) -> BLOCK
+09:44:47.393 - [TAKI_BLOCK] CHECK event=p_1_stop_yellow (card_color=yellow, TAKI_color=blue) -> BLOCK
+09:44:47.397 - BPEvent(name=p_1_closed_taki,data={}, priority=15.0)
+09:44:47.398 - ============================================================
+09:44:47.399 - [PLAYER_1] TAKI SEQUENCE ENDING
+09:44:47.399 - [PLAYER_1] Cards played: ['p_1_card_6_blue']
+09:44:47.399 - [PLAYER_1] Total cards in sequence: 1
+09:44:47.400 - ============================================================
+09:44:47.401 - [TAKI_TURN_GUARD] Player 1: closed_taki observed, keeping next_turn blocked until done_post_action
+09:44:47.402 - [ENFORCE_TURNS] closed_taki received for Regular TAKI, requesting done_post_action
+09:44:47.403 - [ENFORCE_RULES] Event received: p_1_closed_taki
+09:44:47.403 - [ENFORCE_RULES] closed_taki received; ignoring for last-card tracking.
+09:44:47.404 - [ENFORCE_RULES] Waiting for card (must be blue) or done_post_action.
+09:44:47.405 - BPEvent(name=done_post_action,data={}, priority=10.0)
+09:44:47.405 - [TAKI_TURN_GUARD] Player 1: done_post_action observed, next_turn unblocked
+09:44:47.405 - [ENFORCE_TURNS] done_post_action completed for Regular TAKI
+09:44:47.405 - [ENFORCE_RULES] Event received: done_post_action
+09:44:47.411 - ============================================================
+09:44:47.411 - [ENFORCE_RULES] TAKI sequence ended
+09:44:47.411 - [ENFORCE_RULES] Cards played in sequence: ['p_1_card_6_blue']
+09:44:47.411 - [ENFORCE_RULES] Last card color: blue, type: 6
+09:44:47.413 - ============================================================
+09:44:47.413 - [ENFORCE_RULES] Post-TAKI placement rules: must match color=blue OR type=6
+09:44:47.416 - BPEvent(name=next_turn,data={}, priority=10.0)
+09:44:47.416 - [ENFORCE_TURNS] Event received: next_turn
+09:44:47.417 - [ENFORCE_TURNS] Turn change: Player 1 -> Player 0
+09:44:47.419 - BPEvent(name=p_0_card_5_blue,data={}, priority=10.0)
+09:44:47.423 - BPEvent(name=p_0_no_more_cards,data={}, priority=8.0)
+09:44:47.423 - BPEvent(name=end_game,data={}, priority=7.0)
+09:44:47.431 - ENDED

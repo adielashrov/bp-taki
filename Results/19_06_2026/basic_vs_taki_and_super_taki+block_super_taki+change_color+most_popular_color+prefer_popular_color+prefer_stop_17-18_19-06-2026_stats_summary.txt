@@ -1,0 +1,45 @@
+============================================================
+TAKI GAME SIMULATION RESULTS
+============================================================
+
+Strategies:
+  Player 0: basic
+  Player 1: taki_and_super_taki+block_super_taki+change_color+most_popular_color+prefer_popular_color+prefer_stop
+
+Total Games Attempted: 10000
+Completed: 10000 | Errors/Incomplete: 0
+
+Player 0 Wins: 4278 ( 42.8%)
+Player 1 Wins: 5722 ( 57.2%)
+
+Draws: 0 | Deadlocks: 0 | Errors: 0
+
+Average Events per Game: 160.9
+
+Starting Player Analysis:
+  Games where P0 started: 5000
+  Games where P1 started: 5000
+  Starting player won: 5104/10000 (51.0%)
+
+Player 0 — Starting Position vs Outcome (2x2):
+
+                 |  P0 Wins | P0 Not Win
+-----------------+----------+------------
+P0 started       |     2191 |       2809
+P0 started second|     2087 |       2913
+
+Player 1 — Starting Position vs Outcome (2x2):
+
+                 |  P1 Wins | P1 Not Win
+-----------------+----------+------------
+P1 started       |     2913 |       2087
+P1 started second|     2809 |       2191
+
+Player 0 — Win Rates with 95% CI:
+  When starting:  43.8% [ 42.4%,  45.2%]
+  When second:   41.7% [ 40.4%,  43.1%]
+
+Player 1 — Win Rates with 95% CI:
+  When starting:  58.3% [ 56.9%,  59.6%]
+  When second:   56.2% [ 54.8%,  57.6%]
+============================================================
