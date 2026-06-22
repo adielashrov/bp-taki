@@ -1479,7 +1479,7 @@ def run_bp_vs_strategy_player_simulation():
 
 
 def run_players_simulation():
-    num_seed_pairs = 1000
+    num_seed_pairs = 10000
 
     player_0_config = PlayerStrategyConfig(
         base_strategy="basic",
@@ -1495,7 +1495,7 @@ def run_players_simulation():
         change_color=False,
         most_popular_color=False,
         prefer_stop=False,
-        prefer_popular_color_regular_cards=False,
+        prefer_popular_color_regular_cards=True,
     )
 
     stats = run_simulation(
