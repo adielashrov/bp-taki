@@ -1102,6 +1102,124 @@ def prefer_popular_color_regular_cards_strategy(index, num_of_cards=2):
 
     return
 
+
+@bp.thread
+def prefer_popular_color_regular_cards_strategy_original(index, num_of_cards=2):
+
+    """
+    Strategy b-thread: prefer regular numbered cards whose color is most common
+    in the player's current hand.
+
+    Regular cards of the dominant color are requested with priority 7.0, while
+    other regular cards keep the default priority 10.0. Non-regular events
+    (TAKI, Stop, Change-Color, draw_card, closed_taki, no_more_cards, etc.) are
+    not requested or blocked, so their existing b-threads remain authoritative.
+
+    The strategy is priority-only: it never blocks events, rebuilds its requests
+    from the current hand snapshot each turn, and therefore introduces no
+    deadlock risk.
+    """
+    TAG = f"[STRATEGY_POPULAR_COLOR] P{index}"
+
+    all_card_events = []
+    deal_player_cards_event_set = DealCardsEventSet()
+
+    yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
+    logger.debug(f"{TAG}: B-thread started, waiting for initial deal")
+
+    for _ in range(num_of_cards):
+        yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+        deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+        card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+        all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+        logger.debug(f"{TAG}: Dealt {card_name} | Hand: {[e.name for e in all_card_events]}")
+
+    yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
+    logger.debug(f"{TAG}: Game started | Initial hand: {[e.name for e in all_card_events]}")
+
+    draw_card_event   = BPEvent(f"p_{index}_draw_card",    priority=20.0)
+    closed_taki_event = BPEvent(f"p_{index}_closed_taki",  priority=15.0)
+    no_more_cards_ev  = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+    all_card_events.append(draw_card_event)
+    all_card_events.append(closed_taki_event)
+    all_card_events.append(no_more_cards_ev)
+
+    while True:
+        # Build the priority-adjusted request list for regular cards only.
+        # All other hand events (TAKI, stop, change_color, sentinels) are
+        # excluded — we only influence regular numbered cards.
+        color_counts = {color: 0 for color in COLORS}
+        for e in all_card_events:
+            if is_regular_card_event(e):
+                card_color, _ = extract_card_color_and_type(e)
+                if card_color in COLORS:
+                    color_counts[card_color] += 1
+
+        # Dominant color(s): pick the single most popular (ties broken by
+        # COLORS list order, same as most_popular_color_selection_strategy).
+        dominant_color = max(COLORS, key=lambda c: color_counts[c])
+
+        # Build request events: regular cards with adjusted priorities.
+        regular_request_events = []
+        for e in all_card_events:
+            if is_regular_card_event(e):
+                card_color, _ = extract_card_color_and_type(e)
+                if card_color == dominant_color and color_counts[dominant_color] > 0:
+                    regular_request_events.append(
+                        BPEvent(e.name, priority=11.0)  # reduced
+                    )
+                else:
+                    regular_request_events.append(
+                        BPEvent(e.name, priority=10.0)  # unchanged
+                    )
+
+        boosted = [e.name for e in regular_request_events if e.priority == 7.0]
+        regular_count = sum(v for v in color_counts.values())
+        if regular_count > 0:
+            logger.debug(
+                f"{TAG} | "
+                f"Hand: {regular_count} regular card(s) | "
+                f"color_counts={color_counts} | "
+                f"dominant={dominant_color} | "
+                f"boosted={boosted}"
+            )
+        else:
+            logger.debug(f"{TAG} | No regular cards in hand | Hand: {[e.name for e in all_card_events]}")
+
+        # Observe all events (only request the regular cards with boosted priorities).
+        # waitFor covers everything else so hand state stays accurate.
+        observe_set = [e for e in all_card_events if not is_regular_card_event(e)]
+
+        card_event = yield bp.sync(
+            request=regular_request_events,
+            waitFor=observe_set,
+        )
+
+        # --- Update hand state ---
+        if is_draw_card_event(card_event):
+            # A card is being drawn; receive it and add to hand.
+            yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
+            deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
+            card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
+            all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
+            logger.debug(f"{TAG}: Drew {card_name} | Hand now: {[e.name for e in all_card_events if is_regular_card_event(e)]}")
+
+        elif is_no_more_cards_event(card_event):
+            logger.debug(f"{TAG}: no_more_cards — B-thread terminating")
+            break
+
+        elif card_event.name == f"p_{index}_closed_taki":
+            # closed_taki is a permanent sentinel, not a real hand card — do not remove.
+            logger.debug(f"{TAG}: closed_taki observed — TAKI sequence ended, hand unchanged")
+
+        elif card_event in all_card_events:
+            # Any real card played: remove from tracked hand.
+            # (Includes regular cards, stop, change_color, TAKI openers.)
+            all_card_events.remove(card_event)
+            remaining_regular = [e.name for e in all_card_events if is_regular_card_event(e)]
+            logger.debug(f"{TAG}: Played {card_event.name} | Remaining regular cards: {remaining_regular}")
+
+
 def is_selected_color_event(event: BPEvent) -> bool:
     return hasattr(event, "name") and event.name.startswith("selected_")
 
@@ -2032,10 +2150,7 @@ def init_b_program(starting_player=1):
         player_behavior(1, NUM_OF_CARDS),
         change_color_strategy(1, NUM_OF_CARDS),
         most_popular_color_selection_strategy(1, NUM_OF_CARDS),
-        prefer_stop_over_regular_cards_strategy(1, "red"),
-        prefer_stop_over_regular_cards_strategy(1, "blue"),
-        prefer_stop_over_regular_cards_strategy(1, "green"),
-        prefer_popular_color_regular_cards_strategy(1, NUM_OF_CARDS),
+        prefer_popular_color_regular_cards_strategy_original(1, NUM_OF_CARDS),
         # basic_strategy_taki(1, NUM_OF_CARDS),
         # basic_strategy_taki_and_super_taki(1, NUM_OF_CARDS),
         # strategy_block_super_taki_during_regular_taki(1),
@@ -2048,6 +2163,9 @@ def init_b_program(starting_player=1):
         identify_livelock(),
         verify_turn_alternation(),
     ]
+
+    for color in COLORS:
+        game_threads.append(prefer_stop_over_regular_cards_strategy(1, color))
 
     test_threads = []
     if enable_tests:

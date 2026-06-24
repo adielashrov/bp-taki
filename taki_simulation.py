@@ -30,6 +30,7 @@ from bp_taki import (
     most_popular_color_selection_strategy,
     prefer_stop_over_regular_cards_strategy,
     prefer_popular_color_regular_cards_strategy,
+    prefer_popular_color_regular_cards_strategy_original,
     enforce_turns,
     enforce_card_placement_rules,
     identify_deadlock,
@@ -61,7 +62,7 @@ class PlayerStrategyConfig:
         if self.most_popular_color:
             parts.append("most_popular_color")
         if self.prefer_popular_color_regular_cards:
-            parts.append("prefer_popular_color_regular_cards")
+            parts.append("prefer_popular_color_regular_cards_strategy_original")
         if self.prefer_stop:
             parts.append("prefer_stop")
         return "+".join(parts)
@@ -563,7 +564,7 @@ def _apply_strategy_config(bthreads: list, index: int, config: PlayerStrategyCon
         for color in COLORS:
             bthreads.append(prefer_stop_over_regular_cards_strategy(index, color))
     if config.prefer_popular_color_regular_cards:
-        bthreads.append(prefer_popular_color_regular_cards_strategy(index, num_cards))
+        bthreads.append(prefer_popular_color_regular_cards_strategy_original(index, num_cards))
 
 
 def create_simulation_bprogram(
