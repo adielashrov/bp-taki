@@ -1104,25 +1104,35 @@ def prefer_popular_color_regular_cards_strategy(index, num_of_cards=2):
 
 
 @bp.thread
-def prefer_popular_color_regular_cards_strategy_original(index, num_of_cards=2):
-
+def prefer_popular_color_regular_cards_strategy_original(index, num_of_cards=2, boost_probability=1.0):
     """
-    Strategy b-thread: prefer regular numbered cards whose color is most common
-    in the player's current hand.
+    Strategy b-thread: preserve the most popular regular-card color by boosting
+    regular cards from non-dominant colors.
 
-    Regular cards of the dominant color are requested with priority 7.0, while
-    other regular cards keep the default priority 10.0. Non-regular events
-    (TAKI, Stop, Change-Color, draw_card, closed_taki, no_more_cards, etc.) are
-    not requested or blocked, so their existing b-threads remain authoritative.
+    Lower numeric priority wins. Dominant-color regular cards stay at 10.0;
+    non-dominant regular cards are requested at 9.5 - but only on turns where
+    the boost actually fires. ``boost_probability`` (0.0-1.0) is the chance,
+    re-rolled every turn using the shared `random` module (the same stream
+    `taki_simulation.py` seeds per-game via `random.seed(seed)`, so runs stay
+    reproducible), that the boost is applied at all. On turns where it doesn't
+    fire, every regular card is requested at the neutral default (10.0), i.e.
+    that turn behaves exactly like no strategy is active.
 
-    The strategy is priority-only: it never blocks events, rebuilds its requests
-    from the current hand snapshot each turn, and therefore introduces no
-    deadlock risk.
+    The strategy must not extend normal one-card turns. After a regular, stop,
+    change_color, or draw action outside TAKI, it waits for the turn boundary
+    before requesting again. During TAKI, it keeps observing until closed_taki.
     """
     TAG = f"[STRATEGY_POPULAR_COLOR] P{index}"
 
     all_card_events = []
     deal_player_cards_event_set = DealCardsEventSet()
+    in_taki_sequence = False
+
+    turn_boundary_events = bp.EventSetList([
+        BPEvent("next_turn", priority=10.0),
+        BPEvent(f"p_{index}_no_more_cards", priority=8.0),
+        BPEvent("end_game", priority=7.0),
+    ])
 
     yield bp.sync(waitFor=BPEvent("start_dealing_cards_to_players", priority=10.0))
     logger.debug(f"{TAG}: B-thread started, waiting for initial deal")
@@ -1137,88 +1147,120 @@ def prefer_popular_color_regular_cards_strategy_original(index, num_of_cards=2):
     yield bp.sync(waitFor=BPEvent("start_game", priority=10.0))
     logger.debug(f"{TAG}: Game started | Initial hand: {[e.name for e in all_card_events]}")
 
-    draw_card_event   = BPEvent(f"p_{index}_draw_card",    priority=20.0)
-    closed_taki_event = BPEvent(f"p_{index}_closed_taki",  priority=15.0)
-    no_more_cards_ev  = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+    draw_card_event = BPEvent(f"p_{index}_draw_card", priority=20.0)
+    closed_taki_event = BPEvent(f"p_{index}_closed_taki", priority=15.0)
+    no_more_cards_ev = BPEvent(f"p_{index}_no_more_cards", priority=8.0)
+
     all_card_events.append(draw_card_event)
     all_card_events.append(closed_taki_event)
     all_card_events.append(no_more_cards_ev)
 
+    def wait_for_turn_boundary():
+        return bp.sync(waitFor=turn_boundary_events)
+
     while True:
-        # Build the priority-adjusted request list for regular cards only.
-        # All other hand events (TAKI, stop, change_color, sentinels) are
-        # excluded — we only influence regular numbered cards.
         color_counts = {color: 0 for color in COLORS}
-        for e in all_card_events:
-            if is_regular_card_event(e):
-                card_color, _ = extract_card_color_and_type(e)
+        for event in all_card_events:
+            if is_regular_card_event(event):
+                card_color, _ = extract_card_color_and_type(event)
                 if card_color in COLORS:
                     color_counts[card_color] += 1
 
-        # Dominant color(s): pick the single most popular (ties broken by
-        # COLORS list order, same as most_popular_color_selection_strategy).
         dominant_color = max(COLORS, key=lambda c: color_counts[c])
+        apply_boost_this_turn = random.random() < boost_probability
 
-        # Build request events: regular cards with adjusted priorities.
         regular_request_events = []
-        for e in all_card_events:
-            if is_regular_card_event(e):
-                card_color, _ = extract_card_color_and_type(e)
-                if card_color == dominant_color and color_counts[dominant_color] > 0:
-                    regular_request_events.append(
-                        BPEvent(e.name, priority=11.0)  # reduced
-                    )
-                else:
-                    regular_request_events.append(
-                        BPEvent(e.name, priority=10.0)  # unchanged
-                    )
+        for event in all_card_events:
+            if not is_regular_card_event(event):
+                continue
 
-        boosted = [e.name for e in regular_request_events if e.priority == 7.0]
-        regular_count = sum(v for v in color_counts.values())
+            card_color, _ = extract_card_color_and_type(event)
+            if apply_boost_this_turn and card_color != dominant_color and color_counts[dominant_color] > 0:
+                regular_request_events.append(BPEvent(event.name, priority=9.5))
+            else:
+                regular_request_events.append(BPEvent(event.name, priority=10.0))
+
+        boosted = [event.name for event in regular_request_events if event.priority == 9.5]
+        regular_count = sum(color_counts.values())
+
         if regular_count > 0:
             logger.debug(
-                f"{TAG} | "
-                f"Hand: {regular_count} regular card(s) | "
-                f"color_counts={color_counts} | "
-                f"dominant={dominant_color} | "
-                f"boosted={boosted}"
+                f"{TAG} | Hand: {regular_count} regular card(s) | "
+                f"color_counts={color_counts} | dominant={dominant_color} | "
+                f"boost_this_turn={apply_boost_this_turn} | boosted={boosted}"
             )
         else:
             logger.debug(f"{TAG} | No regular cards in hand | Hand: {[e.name for e in all_card_events]}")
 
-        # Observe all events (only request the regular cards with boosted priorities).
-        # waitFor covers everything else so hand state stays accurate.
-        observe_set = [e for e in all_card_events if not is_regular_card_event(e)]
+        observe_set = [event for event in all_card_events if not is_regular_card_event(event)]
 
         card_event = yield bp.sync(
             request=regular_request_events,
             waitFor=observe_set,
         )
 
-        # --- Update hand state ---
+        if card_event.name == "end_game":
+            logger.debug(f"{TAG}: end_game observed - B-thread terminating")
+            return
+
         if is_draw_card_event(card_event):
-            # A card is being drawn; receive it and add to hand.
             yield bp.sync(waitFor=BPEvent(f"deal_cards_to_player_{index}", priority=10.0))
             deal_card_event = yield bp.sync(waitFor=deal_player_cards_event_set)
             card_name = remove_deal_prefix_and_add_player_index(deal_card_event, index)
             all_card_events.append(BPEvent(card_name, priority=deal_card_event.priority))
-            logger.debug(f"{TAG}: Drew {card_name} | Hand now: {[e.name for e in all_card_events if is_regular_card_event(e)]}")
+            logger.debug(
+                f"{TAG}: Drew {card_name} | "
+                f"Hand now: {[e.name for e in all_card_events if is_regular_card_event(e)]}"
+            )
 
-        elif is_no_more_cards_event(card_event):
-            logger.debug(f"{TAG}: no_more_cards — B-thread terminating")
+            boundary_event = yield wait_for_turn_boundary()
+            if is_no_more_cards_event(boundary_event):
+                logger.debug(f"{TAG}: no_more_cards - B-thread terminating")
+                break
+            if boundary_event.name == "end_game":
+                return
+            continue
+
+        if is_no_more_cards_event(card_event):
+            logger.debug(f"{TAG}: no_more_cards - B-thread terminating")
             break
 
-        elif card_event.name == f"p_{index}_closed_taki":
-            # closed_taki is a permanent sentinel, not a real hand card — do not remove.
-            logger.debug(f"{TAG}: closed_taki observed — TAKI sequence ended, hand unchanged")
+        if card_event.name == f"p_{index}_closed_taki":
+            in_taki_sequence = False
+            logger.debug(f"{TAG}: closed_taki observed - TAKI sequence ended, hand unchanged")
 
-        elif card_event in all_card_events:
-            # Any real card played: remove from tracked hand.
-            # (Includes regular cards, stop, change_color, TAKI openers.)
+            boundary_event = yield wait_for_turn_boundary()
+            if is_no_more_cards_event(boundary_event):
+                logger.debug(f"{TAG}: no_more_cards - B-thread terminating")
+                break
+            if boundary_event.name == "end_game":
+                return
+            continue
+
+        if card_event in all_card_events:
             all_card_events.remove(card_event)
             remaining_regular = [e.name for e in all_card_events if is_regular_card_event(e)]
             logger.debug(f"{TAG}: Played {card_event.name} | Remaining regular cards: {remaining_regular}")
 
+            if is_any_taki_event(card_event):
+                in_taki_sequence = True
+                continue
+
+            if (
+                not in_taki_sequence
+                and (
+                    is_regular_card_event(card_event)
+                    or is_stop_card_event(card_event)
+                    or is_change_color_event(card_event)
+                )
+            ):
+                boundary_event = yield wait_for_turn_boundary()
+                if is_no_more_cards_event(boundary_event):
+                    logger.debug(f"{TAG}: no_more_cards - B-thread terminating")
+                    break
+                if boundary_event.name == "end_game":
+                    return
+                
 
 def is_selected_color_event(event: BPEvent) -> bool:
     return hasattr(event, "name") and event.name.startswith("selected_")

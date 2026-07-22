@@ -52,6 +52,7 @@ class PlayerStrategyConfig:
     most_popular_color: bool = False
     prefer_stop: bool = False
     prefer_popular_color_regular_cards: bool = False
+    prefer_popular_color_boost_probability: float = 1.0
 
     def label(self) -> str:
         parts = [self.base_strategy]
@@ -62,7 +63,10 @@ class PlayerStrategyConfig:
         if self.most_popular_color:
             parts.append("most_popular_color")
         if self.prefer_popular_color_regular_cards:
-            parts.append("prefer_popular_color_regular_cards_strategy_original")
+            tag = "prefer_popular_color_regular_cards_strategy_original"
+            if self.prefer_popular_color_boost_probability != 1.0:
+                tag += f"_p{self.prefer_popular_color_boost_probability:g}"
+            parts.append(tag)
         if self.prefer_stop:
             parts.append("prefer_stop")
         return "+".join(parts)
@@ -564,7 +568,9 @@ def _apply_strategy_config(bthreads: list, index: int, config: PlayerStrategyCon
         for color in COLORS:
             bthreads.append(prefer_stop_over_regular_cards_strategy(index, color))
     if config.prefer_popular_color_regular_cards:
-        bthreads.append(prefer_popular_color_regular_cards_strategy_original(index, num_cards))
+        bthreads.append(prefer_popular_color_regular_cards_strategy_original(
+            index, num_cards, config.prefer_popular_color_boost_probability
+        ))
 
 
 def create_simulation_bprogram(
